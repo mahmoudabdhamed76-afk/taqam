@@ -36,15 +36,16 @@
   }
 
   function shell() {
-    $('#root').innerHTML = '<header class="mhead" id="mhead"></header><main class="wrap-app" id="view"></main><nav class="dock"><div class="dock-in">' +
-      [['home', 'الرئيسية', 'home'], ['faults', 'الأعطال', 'tool'], ['month', 'شهري', 'cal'], ['chat', 'الإدارة', 'chat']].map(([k, t, i]) => '<button data-tab="' + k + '">' + ic(i, 22) + t + (k === 'chat' ? '<span class="badge" id="unr" hidden></span>' : '') + '</button>').join('') + '</div></nav>';
-    $$('.dock button').forEach(b => b.onclick = () => { tab = b.dataset.tab; render(); window.scrollTo(0, 0); });
+    $('#root').innerHTML = '<header class="mhead" id="mhead"></header><main class="wrap-app" id="view"></main><nav class="gbar" id="dock">' +
+      [['home', 'الرئيسية', 'home'], ['faults', 'الأعطال', 'tool'], ['month', 'شهري', 'cal'], ['chat', 'الإدارة', 'chat']].map(([k, t, i]) => '<button class="bn-item" data-tab="' + k + '">' + ic(i, 22) + t + (k === 'chat' ? '<span class="badge" id="unr" hidden></span>' : '') + '</button>').join('') + '</nav>';
+    $$('#dock .bn-item').forEach(b => b.onclick = () => { tab = b.dataset.tab; render(); window.scrollTo(0, 0); });
   }
   let lastTab = null;
   function render() {
-    $$('.dock button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+    $$('#dock .bn-item').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+    K.glass($('#dock'));
     const u = $('#unr'); if (u) { u.hidden = !H.unread; u.textContent = H.unread; }
-    const chatBtn = $('.dock [data-tab=chat]'); if (chatBtn) chatBtn.hidden = !H.settings.chat_on;
+    const chatBtn = $('#dock [data-tab=chat]'); if (chatBtn) chatBtn.hidden = !H.settings.chat_on;
     head();
     ({ home, faults, month, chat })[tab]();
     const v = $('#view'); if (lastTab !== tab) { v.classList.remove('enter'); void v.offsetWidth; v.classList.add('enter'); lastTab = tab; }

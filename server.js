@@ -12,6 +12,9 @@ const path = require('node:path');
 const zlib = require('node:zlib');
 const { db } = require('./lib/db');
 const U = require('./lib/util');
+const cases = require('./lib/cases');   // حالات المرضى بالباركود (/k/ للمركز، /v/ و /h/ للمريض) — نفس نظام Ozarex
+const tiles = require('./lib/tiles');   // صور الخريطة من سيرفرنا (OSM) — CARTO بقى بيطلب مفتاح
+cases.setLookup(cid => { const c = db.prepare('SELECT phone FROM clients WHERE id = ?').get(cid); return (c && c.phone) || ''; });
 
 const PORT = Number(process.env.PORT || 8080);
 const PUB = path.join(__dirname, 'public');
@@ -130,6 +133,9 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   const p = decodeURIComponent(url.pathname);
   try {
+    if (p.startsWith('/tiles/') && tiles.handle(req, res, p)) return;
+    if ((p.startsWith('/k/') || p.startsWith('/v/') || p.startsWith('/h/')) && await cases.handle(req, res, p) !== false) return;
+    if (p === '/api/portal/cases' || p.startsWith('/api/portal/cases/')) { const s = session(req, 'user'); if (!s) return U.send(res, 401, { message: 'سجّل دخول' }); return await cases.adminApi(req, res, p, s.who); }
     if (await authRoutes(req, res, url) !== false) return;
 
     /* photos */

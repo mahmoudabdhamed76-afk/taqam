@@ -71,12 +71,7 @@ body { min-height: 100vh; }
   .mhead-row { display: flex; align-items: center; gap: 8px; }
   .mhead .brand-t b { font-size: 22px; }
   .mhead .live { max-width: none; background: rgba(0, 0, 0, .35); }
-  .bnav { display: grid; grid-template-columns: repeat(5, 1fr); position: fixed; inset-inline: 12px; bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 70; padding: 6px; border-radius: 26px; background: color-mix(in srgb, #1A0709 88%, transparent); border: 1px solid var(--line-2); backdrop-filter: blur(16px); box-shadow: 0 18px 40px -16px rgba(0, 0, 0, .8); }
-  :root[data-theme="light"] .bnav { background: color-mix(in srgb, #fff 92%, transparent); }
-  .bn-item { position: relative; overflow: hidden; border: 0; background: transparent; color: var(--ink-2); display: grid; justify-items: center; gap: 3px; padding: 9px 2px 7px; border-radius: 20px; font-size: 12px; font-weight: 700; cursor: pointer; transition: color .2s, background .2s; }
-  .bn-item.on { color: var(--brand-2); background: var(--brand-soft); }
-  .bn-item.on svg { filter: drop-shadow(0 0 8px rgba(255, 59, 71, .7)); animation: niPop .45s cubic-bezier(.3, 1.6, .5, 1); }
-  .bn-item .badge { position: absolute; top: 4px; inset-inline-start: calc(50% + 6px); }
+  .bnav { display: flex; }
   .page { padding-bottom: 110px !important; }
 }
 

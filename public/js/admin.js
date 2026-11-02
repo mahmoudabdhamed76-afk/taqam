@@ -79,7 +79,7 @@
       '<button class="ib" data-act="refresh" aria-label="تحديث">' + ic('refresh', 18) + '</button><button class="ib" data-act="theme" aria-label="فاتح / غامق" id="thb">' + ic(K.theme.dark() ? 'sun' : 'moon', 18) + '</button><button class="ib" data-act="bell" aria-label="التنبيهات">' + ic('bell', 19) + '<span class="nd" id="bell-dot" hidden></span></button></header>' +
       '<header class="mhead"><div class="mhead-row"><button class="ib" data-act="more" aria-label="القايمة">' + ic('menu', 20) + '</button><span class="brand-t"><b>' + esc(s.company) + '</b><span>' + esc(S.me.name) + '</span></span><button class="ib" data-act="bell" aria-label="التنبيهات">' + ic('bell', 19) + '<span class="nd" id="bell-dot2" hidden></span></button><button class="ib" data-act="quick" aria-label="بحث">' + ic('search', 19) + '</button><button class="ib" data-act="theme" aria-label="فاتح / غامق">' + ic(K.theme.dark() ? 'sun' : 'moon', 18) + '</button></div>' + liveBox.replace('id="live"', '').replace('id="live-track"', 'id="live-track2"') + '</header>' +
       '<main class="page" id="view"></main></div></div>' +
-      '<nav class="bnav" id="bnav"></nav>';
+      '<nav class="bnav gbar" id="bnav"></nav>';
     document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); quick(); } });
   }
   function tabs() {
@@ -90,9 +90,10 @@
     const moreN = ['requests', 'follow', 'chat'].reduce((s2, k) => s2 + badgeOf(k), 0);
     bn.innerHTML = BNAV.map(([k, t, i]) => '<button class="bn-item ' + (k === S.page ? 'on' : '') + '" data-act="go" data-p="' + k + '">' + ic(i, 22) + t + (badgeOf(k) ? '<span class="badge">' + badgeOf(k) + '</span>' : '') + '</button>').join('') +
       '<button class="bn-item ' + (inMore ? 'on' : '') + '" data-act="more">' + ic('grid', 22) + 'المزيد' + (moreN ? '<span class="badge">' + moreN + '</span>' : '') + '</button>';
+    K.glass(bn);
     $('#ttl').textContent = titleOf(S.page);
     const alerts = (S.counts.requests || 0) + (S.counts.follow || 0) + (S.counts.chat || 0);
-    ['#bell-dot', '#bell-dot2'].forEach(x => { const d = $(x); if (d) d.hidden = !alerts; });
+    ['#bell-dot', '#bell-dot2'].forEach(x => { const d = $(x); if (d) { d.hidden = !alerts; d.parentNode.classList.toggle('ring-bell', !!alerts); } });
   }
   function route() {
     const p = (location.hash.replace(/^#\/?/, '').split('?')[0]) || 'today';
@@ -204,7 +205,7 @@
     newTask: b => taskForm({ emp_id: b.dataset.emp || '', client_id: b.dataset.client || '' }),
     copy: b => { navigator.clipboard.writeText(b.dataset.text).then(() => toast('اتنسخ'), () => toast('انسخه يدوي', 'err')); },
     photo: b => modal('<img src="' + esc(b.dataset.src) + '" style="width:100%;border-radius:14px">'),
-    refresh: () => { tickAt = 0; route(); }
+    refresh: b => { b.classList.remove('spin'); void b.offsetWidth; b.classList.add('spin'); tickAt = 0; route(); }
   };
   document.addEventListener('click', e => { const a = e.target.closest('[data-act]'); if (a && ACT[a.dataset.act]) { e.preventDefault(); ACT[a.dataset.act](a, e); } });
 
@@ -220,7 +221,7 @@
     view().innerHTML =
       '<div class="ph"><div><h1>' + K.dayName(d.date) + '، ' + dm(d.date) + '</h1><div class="sub">' + B.length + ' موظف في الخدمة — آخر تحديث ' + hm(d.now) + '</div></div>' +
       '<div class="acts"><button class="btn" data-act="refresh">' + ic('refresh', 16) + 'تحديث</button><button class="btn primary" data-act="newTask">' + ic('plus', 16) + 'مهمة جديدة</button></div></div>' +
-      '<div class="tally"><div class="go"><span class="ic">' + ic('users', 18) + '</span><b data-count="' + cnt(['in', 'on_way', 'visit']) + '">' + cnt(['in', 'on_way', 'visit']) + '</b><span>في الشغل دلوقتي</span></div><div><span class="ic">' + ic('route', 18) + '</span><b data-count="' + cnt(['on_way', 'visit']) + '">' + cnt(['on_way', 'visit']) + '</b><span>في الطريق أو عند عميل</span></div><div class="late"><span class="ic">' + ic('clock', 18) + '</span><b data-count="' + late + '">' + late + '</b><span>اتأخروا النهارده</span></div><div class="stop"><span class="ic">' + ic('x', 18) + '</span><b data-count="' + cnt(['absent']) + '">' + cnt(['absent']) + '</b><span>مجوش</span></div><div class="hv rp" data-act="go" data-p="requests"><span class="ic">' + ic('inbox', 18) + '</span><b data-count="' + (d.counts.requests || 0) + '">' + (d.counts.requests || 0) + '</b><span>طلبات عملاء جديدة</span></div></div>' +
+      '<div class="tally draw"><div class="go"><span class="ic">' + ic('users', 18) + '</span><b data-count="' + cnt(['in', 'on_way', 'visit']) + '">' + cnt(['in', 'on_way', 'visit']) + '</b><span>في الشغل دلوقتي</span></div><div><span class="ic">' + ic('route', 18) + '</span><b data-count="' + cnt(['on_way', 'visit']) + '">' + cnt(['on_way', 'visit']) + '</b><span>في الطريق أو عند عميل</span></div><div class="late"><span class="ic">' + ic('clock', 18) + '</span><b data-count="' + late + '">' + late + '</b><span>اتأخروا النهارده</span></div><div class="stop"><span class="ic">' + ic('x', 18) + '</span><b data-count="' + cnt(['absent']) + '">' + cnt(['absent']) + '</b><span>مجوش</span></div><div class="hv rp" data-act="go" data-p="requests"><span class="ic">' + ic('inbox', 18) + '</span><b data-count="' + (d.counts.requests || 0) + '">' + (d.counts.requests || 0) + '</b><span>طلبات عملاء جديدة</span></div></div>' +
       '<div class="cols"><div class="stack">' + timeline(B, d) + '<div class="card" style="padding:0;overflow:hidden"><div class="blk-hd"><h3>فين الفريق دلوقتي</h3><button class="btn sm ghost" data-act="go" data-p="map">' + ic('map', 15) + 'الخريطة كاملة</button></div><div class="map" id="m-today" style="border:0;border-radius:0;height:340px"></div></div></div>' +
       '<div class="stack">' + reqList(d.requests) + followList(d.follow) + '</div></div>';
     liveMap('m-today', await get('/api/live'));
@@ -587,7 +588,7 @@
     const nq = s => String(s || '').toLowerCase().replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي');
     const list = C.filter(c => (f.st === 'all' || c.status === f.st) && (!f.g || c.grp === f.g) && (!f.q || nq(c.name + ' ' + c.phone + ' ' + c.contact + ' ' + c.address).includes(nq(f.q))));
     const totBal = C.filter(c => c.status === 'active').reduce((s, c) => s + (c.balance > 0 ? c.balance : 0), 0);
-    view().innerHTML = '<div class="ph"><div><h1>العملاء</h1><div class="sub">' + C.filter(c => c.status === 'active').length + ' عميل · مستحق عليهم <b class="tnum">' + money(totBal, cur()) + '</b>. كل عميل ليه لينك يتابع منه حسابه ويطلب ورق أو صيانة.</div></div><div class="acts"><button class="btn" id="cimp">' + ic('download', 16) + 'استيراد</button><button class="btn primary" id="cadd">' + ic('plus', 16) + 'عميل جديد</button></div></div>' +
+    view().innerHTML = '<div class="ph"><div><h1>العملاء</h1><div class="sub">' + C.filter(c => c.status === 'active').length + ' عميل · مستحق عليهم <b class="tnum">' + money(totBal, cur()) + '</b>. كل عميل ليه لينك يتابع منه حسابه ويطلب ورق أو صيانة.</div></div><div class="acts"><button class="btn" data-act="qrall">' + ic('qr', 16) + 'اطبع كل الباركودات</button><button class="btn" id="cimp">' + ic('download', 16) + 'استيراد</button><button class="btn primary" id="cadd">' + ic('plus', 16) + 'عميل جديد</button></div></div>' +
       '<div class="toolbar"><div class="search">' + ic('search', 17) + '<input class="input" id="cq" placeholder="دوّر بالاسم أو الموبايل…" value="' + esc(f.q) + '"></div>' +
       (groups.length ? '<select class="input" id="cg" style="max-width:200px"><option value="">كل المناطق</option>' + groups.map(g => '<option ' + (g === f.g ? 'selected' : '') + '>' + esc(g) + '</option>').join('') + '</select>' : '') +
       '<div class="seg"><button data-act="clst" data-k="active" class="' + (f.st === 'active' ? 'on' : '') + '">شغالين</button><button data-act="clst" data-k="paused" class="' + (f.st === 'paused' ? 'on' : '') + '">متوقفين</button><button data-act="clst" data-k="all" class="' + (f.st === 'all' ? 'on' : '') + '">الكل</button></div></div>' +
@@ -634,9 +635,9 @@
     const linkMsg = 'أهلاً ' + (c.contact || c.name) + '\nده لينك ' + c.name + ' عند ' + s.company + ' — تقدر منه تشوف حسابك وتطلب ورق أو صيانة وتتابع طلبك:\n' + url;
     const maxV = Math.max(1, ...d.months.map(x => Math.max(x.invoiced, x.paid)));
     const dr = drawer('<div style="flex:1;min-width:0"><h2>' + esc(c.name) + '</h2><div class="muted small">' + [c.grp, c.contact, c.address].filter(Boolean).map(esc).join(' · ') + '</div></div>',
-      '<div class="row wrap">' + (c.phone ? '<a class="btn sm" href="tel:' + esc(c.phone) + '">' + ic('phone', 15) + 'اتصال</a><a class="btn sm" target="_blank" rel="noopener" href="' + K.wa(c.phone) + '">' + ic('wa', 15) + 'واتساب</a>' : '') + '<button class="btn sm" data-act="newTask" data-client="' + c.id + '">' + ic('task', 15) + 'ابعت موظف</button>' + (c.lat != null ? '<a class="btn sm" target="_blank" rel="noopener" href="https://www.google.com/maps?q=' + c.lat + ',' + c.lng + '">' + ic('pin', 15) + 'الخريطة</a>' : '') + '<span class="grow"></span><button class="btn sm" id="cd-edit">' + ic('edit', 15) + 'تعديل</button></div>' +
+      '<div class="row wrap">' + (c.phone ? '<a class="btn sm" href="tel:' + esc(c.phone) + '">' + ic('phone', 15) + 'اتصال</a><a class="btn sm" target="_blank" rel="noopener" href="' + K.wa(c.phone) + '">' + ic('wa', 15) + 'واتساب</a>' : '') + '<button class="btn sm" data-act="newTask" data-client="' + c.id + '">' + ic('task', 15) + 'ابعت موظف</button>' + (c.lat != null ? '<a class="btn sm" target="_blank" rel="noopener" href="https://www.google.com/maps?q=' + c.lat + ',' + c.lng + '">' + ic('pin', 15) + 'الخريطة</a>' : '') + '<button class="btn sm" data-act="cases" data-id="' + c.id + '">' + ic('file', 15) + 'حالات المرضى</button><span class="grow"></span><button class="btn sm" id="cd-edit">' + ic('edit', 15) + 'تعديل</button></div>' +
       '<div class="kv"><div><span>المستحق</span><b style="color:' + (d.money.balance > 0 ? 'var(--late)' : 'var(--go)') + '">' + money(d.money.balance) + '</b></div><div><span>إجمالي الفواتير</span><b>' + money(d.money.invoiced) + '</b></div><div><span>اتحصّل</span><b>' + money(d.money.paid) + '</b></div><div><span>المتابعة الجاية</span><b style="font-size:18px">' + (c.next_follow ? dm(c.next_follow) : '—') + '</b></div></div>' +
-      '<div class="linkbox">' + ic('link', 18) + '<code>' + esc(url) + '</code>' + (c.portal_on ? '<button class="btn sm" data-act="copy" data-text="' + esc(url) + '">' + ic('copy', 14) + 'نسخ</button><a class="btn sm" target="_blank" rel="noopener" href="' + esc(url) + '">' + ic('ext', 14) + 'فتح</a>' + (c.phone ? '<a class="btn sm go" target="_blank" rel="noopener" href="' + K.wa(c.phone, linkMsg) + '">' + ic('wa', 14) + 'ابعته</a>' : '') + '<button class="btn sm ghost" data-act="clink" data-id="' + c.id + '" data-a="rotate" title="لينك جديد (القديم يبطل)">' + ic('refresh', 14) + '</button><button class="btn sm ghost danger" data-act="clink" data-id="' + c.id + '" data-a="off">إيقاف</button>' : '<span class="chip stop">متوقف</span><button class="btn sm" data-act="clink" data-id="' + c.id + '" data-a="on">تشغيل</button>') + '</div>' +
+      '<div class="linkbox">' + ic('link', 18) + '<code>' + esc(url) + '</code>' + (c.portal_on ? '<button class="btn sm" data-act="copy" data-text="' + esc(url) + '">' + ic('copy', 14) + 'نسخ</button><a class="btn sm" target="_blank" rel="noopener" href="' + esc(url) + '">' + ic('ext', 14) + 'فتح</a>' + (c.phone ? '<a class="btn sm go" target="_blank" rel="noopener" href="' + K.wa(c.phone, linkMsg) + '">' + ic('wa', 14) + 'ابعته</a>' : '') + '<button class="btn sm" data-act="qr" data-id="' + c.id + '">' + ic('qr', 14) + 'باركود</button>' + '<button class="btn sm ghost" data-act="clink" data-id="' + c.id + '" data-a="rotate" title="لينك جديد (القديم يبطل)">' + ic('refresh', 14) + '</button><button class="btn sm ghost danger" data-act="clink" data-id="' + c.id + '" data-a="off">إيقاف</button>' : '<span class="chip stop">متوقف</span><button class="btn sm" data-act="clink" data-id="' + c.id + '" data-a="on">تشغيل</button>') + '</div>' +
       '<div class="seg" id="cd-tabs"><button data-t="follow">المتابعة</button><button data-t="money">الحساب</button><button data-t="req">الطلبات ' + (d.requests.filter(r => ['new', 'ok'].includes(r.status)).length || '') + '</button><button data-t="visits">الزيارات</button></div><div id="cd-body"></div>');
     $('#cd-edit', dr).onclick = () => clientForm(c);
     const tabsEl = $('#cd-tabs', dr), body = $('#cd-body', dr);
@@ -785,6 +786,89 @@
     };
   }
   ACT.udel = async b => { if (await confirm('مسح المدير ده؟', '', 'مسح', true)) { await post('/api/users/del', { id: b.dataset.id }).catch(err); loadUsers(); } };
+
+  /* ════ باركود لينك العميل — استيكر يتلزق على الطابعة (نفس Ozarex) ════ */
+  function qrSvg(text, px) {
+    const q = qrcode(0, 'M'); q.addData(text); q.make();
+    const n = q.getModuleCount(), m = 2, sz = n + m * 2; let d = '';
+    for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (q.isDark(r, c)) d += 'M' + (c + m) + ' ' + (r + m) + 'h1v1h-1z';
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + sz + ' ' + sz + '" width="' + px + '" height="' + px + '" shape-rendering="crispEdges"><rect width="' + sz + '" height="' + sz + '" fill="#fff"/><path d="' + d + '" fill="#0F172A"/></svg>';
+  }
+  const QS_CSS = '.qs{width:64mm;background:#fff;color:#0F172A;border:1.5px dashed #94A3B8;border-radius:5mm;padding:4mm 4mm 3.5mm;text-align:center;font-family:Tahoma,Arial,sans-serif;box-sizing:border-box;break-inside:avoid;page-break-inside:avoid}' +
+    '.qs.big{width:auto;max-width:340px;margin:auto;border-style:solid;border-color:#E2E8F0;padding:18px;border-radius:22px;box-shadow:0 12px 30px -18px rgba(15,23,42,.4)}' +
+    '.qs-h{display:flex;align-items:center;justify-content:center;gap:6px;font-size:12px}.qs-h img{width:22px;height:22px;object-fit:contain;border-radius:5px}.qs-h b{font-size:13px}' +
+    '.qs-c{font-weight:800;font-size:15px;margin:2mm 0 1mm;line-height:1.3}.qs.big .qs-c{font-size:19px;margin:8px 0 4px}' +
+    '.qs-q svg{display:block;margin:0 auto;max-width:100%;height:auto}.qs-t{font-weight:700;font-size:12px;margin-top:1.5mm}.qs.big .qs-t{font-size:14px;margin-top:6px}' +
+    '.qs-s{font-size:10px;color:#475569;margin-top:.5mm}.qs.big .qs-s{font-size:12.5px}.qs-u{font-family:monospace;font-size:10.5px;color:#0F172A;direction:ltr;margin-top:1mm;letter-spacing:.3px}.qs.big .qs-u{font-size:13px;margin-top:6px}';
+  const portalUrl = c => location.origin + '/c/' + c.portal_code;
+  function sticker(c, big) {
+    const u = portalUrl(c), logo = S.boot.settings.logo;
+    return '<div class="qs' + (big ? ' big' : '') + '"><div class="qs-h">' + (logo ? '<img src="' + esc(logo) + '" alt="">' : '') + '<b>' + esc(S.boot.settings.company) + '</b></div>' +
+      '<div class="qs-c">' + esc(c.name) + '</div><div class="qs-q">' + qrSvg(u, big ? 240 : 170) + '</div>' +
+      '<div class="qs-t">📱 امسح الكود بكاميرا الموبايل</div><div class="qs-s">حسابكم · سحبكم كل شهر · اطلبوا ورق أو صيانة</div><div class="qs-u">' + esc(u.replace(/^https?:\/\//, '')) + '</div></div>';
+  }
+  async function qrModal(cid) {
+    const c = (await get('/api/clients/one?id=' + encodeURIComponent(cid))).client;
+    if (!c.portal_on) return toast('شغّل اللينك الأول', 'err');
+    if (!$('#qs-css')) { const st = document.createElement('style'); st.id = 'qs-css'; st.textContent = QS_CSS; document.head.appendChild(st); }
+    const m = modal('<div class="modal-hd"><h3>باركود ' + esc(c.name) + '</h3><button class="btn ghost icon" data-close aria-label="قفل">' + ic('x') + '</button></div><div style="padding:6px 0">' + sticker(c, true) + '<p class="small muted" style="text-align:center;margin-top:12px">اطبعه والزقه على الطابعة عند المركز. لو عملت «لينك جديد» الباركود القديم بيقف — اطبع الجديد.</p></div>' +
+      '<div class="modal-ft"><button class="btn" data-close>قفل</button><button class="btn" id="qr-png">' + ic('download', 16) + 'صورة</button><button class="btn primary" id="qr-print">' + ic('print', 16) + 'اطبع الاستيكر</button></div>');
+    $('#qr-print', m.el).onclick = () => qrPrint([c]);
+    $('#qr-png', m.el).onclick = () => qrPng(c);
+  }
+  function qrPrint(list) {
+    const w = window.open('', '_blank'); if (!w) return toast('المتصفح منع نافذة الطباعة — اسمح بالنوافذ المنبثقة', 'err');
+    w.document.open();
+    w.document.write('<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>باركود المراكز</title><style>@page{size:A4;margin:8mm}body{margin:0;background:#fff}.g{display:flex;flex-wrap:wrap;gap:5mm;justify-content:center}' + QS_CSS + '</style></head><body><div class="g">' +
+      list.map(c => sticker(c, false)).join('') + '</div><script>window.onload=function(){setTimeout(function(){window.print()},250)}<\/script></body></html>');
+    w.document.close();
+  }
+  function qrPng(c) {
+    const u = portalUrl(c), q = qrcode(0, 'M'); q.addData(u); q.make();
+    const n = q.getModuleCount(), cell = 12, pad = 40, qs = n * cell, W = qs + pad * 2, H = qs + pad * 2 + 120;
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const g = cv.getContext('2d');
+    g.fillStyle = '#fff'; g.fillRect(0, 0, W, H); g.fillStyle = '#0F172A';
+    g.font = 'bold 30px Tahoma, Arial'; g.textAlign = 'center'; g.direction = 'rtl'; g.fillText(String(c.name).slice(0, 40), W / 2, 56);
+    for (let r = 0; r < n; r++) for (let k = 0; k < n; k++) if (q.isDark(r, k)) g.fillRect(pad + k * cell, 80 + r * cell, cell, cell);
+    g.font = '22px monospace'; g.direction = 'ltr'; g.fillText(u.replace(/^https?:\/\//, ''), W / 2, 80 + qs + 40);
+    g.font = 'bold 20px Tahoma, Arial'; g.direction = 'rtl'; g.fillText('امسح الكود — حسابكم وطلب الورق', W / 2, 80 + qs + 76);
+    const a = document.createElement('a'); a.href = cv.toDataURL('image/png'); a.download = 'باركود-' + String(c.name).replace(/[\\/:*?"<>|]/g, '') + '.png'; document.body.appendChild(a); a.click(); a.remove();
+  }
+  ACT.qr = b => qrModal(b.dataset.id).catch(err);
+  ACT.qrall = async () => { const cl = (await clientsList()).filter(c => c.status === 'active' && c.portal_on); if (!cl.length) return toast('مفيش عملاء ليهم لينك', 'err'); if (!$('#qs-css')) { const st = document.createElement('style'); st.id = 'qs-css'; st.textContent = QS_CSS; document.head.appendChild(st); } qrPrint(cl); };
+
+  /* ════ حالات المرضى: لينك منفصل للمركز بباسوورد (/k/xxxxxxxx) — نفس Ozarex ════ */
+  const capi = (method, path, body) => K.api(method, '/api/portal/cases' + path, body);
+  async function casesModal(cid, fresh) {
+    const c = (await get('/api/clients/one?id=' + encodeURIComponent(cid))).client;
+    const r = await capi('GET', '?cid=' + encodeURIComponent(cid)); const s = r.site;
+    if (!s) {
+      const m = modal('<div class="modal-hd"><h3>حالات المرضى — ' + esc(c.name) + '</h3><button class="btn ghost icon" data-close aria-label="قفل">' + ic('x') + '</button></div>' +
+        '<p class="muted">لينك منفصل للمركز بباسوورد، يفتحه من الكمبيوتر بتاعه ويرفع PDF الحالة، ويطلعله باركود يتلزق للمريض. المريض يمسحه ويشوف حالته على موبايله.</p>' +
+        '<ul style="margin:10px 18px 14px;line-height:1.9;font-size:13.5px;color:var(--ink-2)"><li>الملف بيتشفّر على جهاز المركز، والأصل بيفضل عنده.</li><li>نسخة مشفّرة مؤقتة على السيرفر أول 7 أيام بس — بعدها المريض بيفتح من جهاز المركز لايف (لو صفحته مفتوحة).</li><li>الباسوورد مختلف عن لينك الحساب.</li></ul>' +
+        '<label class="field"><span>الباسوورد (سيبه فاضي ونعملك واحد 6 أرقام)</span><input class="input" id="cs-pw" maxlength="40" placeholder="مثلاً 482913"></label>' +
+        '<div class="modal-ft"><button class="btn" data-close>إلغاء</button><button class="btn primary" id="cs-go">' + ic('file', 16) + 'اعمل لينك الحالات</button></div>');
+      $('#cs-go', m.el).onclick = ev => busy(ev.currentTarget, async () => { const x = await capi('POST', '/make', { cid, name: c.name, wa: c.phone || '', pass: $('#cs-pw', m.el).value || '' }); m.close(); casesModal(cid, x.pass); });
+      return;
+    }
+    if (!s.wa && c.phone) capi('POST', '/wa', { cid, wa: c.phone, ifEmpty: true }).catch(() => {});
+    const u = location.origin + '/k/' + s.code, fixedU = location.origin + '/h/' + s.pub;
+    const msg = 'السلام عليكم ' + c.name + ' 🌿\nده لينك «حالات المرضى» من *' + S.boot.settings.company + '*:\n' + u + (fresh ? '\nالباسوورد: ' + fresh : '') + '\n\nافتحوه من كمبيوتر المركز، اسحبوا PDF الحالة، وهيطلعلكم باركود تلزقوه للمريض — المريض يمسحه ويشوف أشعته على موبايله.\nسيبوا الصفحة مفتوحة على الكمبيوتر عشان الحالات القديمة تفضل تفتح.';
+    const m = modal('<div class="modal-hd"><h3>حالات المرضى — ' + esc(c.name) + '</h3><button class="btn ghost icon" data-close aria-label="قفل">' + ic('x') + '</button></div>' +
+      (fresh ? '<div class="secret" style="text-align:center;margin-bottom:12px"><span class="small muted">الباسوورد (اكتبه دلوقتي — مش هيظهر تاني)</span><code style="font-size:30px;letter-spacing:4px;text-align:center">' + esc(fresh) + '</code></div>' : '') +
+      '<div class="linkbox">' + ic('link', 18) + '<code>' + esc(u) + '</code><button class="btn sm" data-act="copy" data-text="' + esc(u) + '">' + ic('copy', 14) + 'نسخ</button><a class="btn sm" target="_blank" rel="noopener" href="' + esc(u) + '">' + ic('ext', 14) + 'فتح</a></div>' +
+      '<div class="kv" style="margin-top:12px"><div><span>الحالة</span><b style="font-size:17px;color:' + (s.online ? 'var(--go)' : 'var(--ink-2)') + '">' + (s.online ? '● متصل دلوقتي' : (s.last_seen ? 'آخر دخول ' + esc(String(s.last_seen).slice(0, 16)) : 'لسه مدخلش')) + '</b></div><div><span>حالات</span><b>' + s.cases + '</b></div><div><span>مرة اتفتحت</span><b>' + s.views + '</b></div></div>' +
+      (s.pub ? '<p class="small muted" style="margin-top:12px">📌 الباركود الثابت للورق (المريض يكتب موبايله وأول اسمه): <a href="' + esc(fixedU) + '" target="_blank" rel="noopener" style="direction:ltr;unicode-bidi:isolate;color:var(--brand-2)">' + esc(fixedU) + '</a>' + (s.fixed ? '' : ' — <b>موقوف من المركز</b>') + '</p>' : '') +
+      '<div class="row" style="margin-top:12px"><span class="small" style="white-space:nowrap;font-weight:700">💬 واتساب طلبات المرضى</span><input class="input" id="cs-wa-n" value="' + esc(s.wa || '') + '" placeholder="' + esc(c.phone || '01xxxxxxxxx') + '" style="direction:ltr;text-align:right"><button class="btn sm" id="cs-wa-s">حفظ</button></div>' +
+      '<p class="small muted" style="margin-top:6px">المريض اللي مايلاقيش نتيجته بيبعت على الرقم ده' + (s.wa ? '' : ' (فاضي → بيتبعت على رقم المركز)') + '.' + (s.asks ? ' <b style="color:var(--go)">' + s.asks + ' طلب مفتوح</b>' : '') + '</p>' +
+      (!s.active ? '<p class="small" style="color:var(--stop);font-weight:700;margin-top:6px">⏸ اللينك موقوف — المركز مش هيقدر يدخل والمرضى مش هيفتحوا.</p>' : '') +
+      '<div class="modal-ft"><button class="btn ghost" id="cs-rt">' + ic('refresh', 15) + 'لينك جديد</button><button class="btn ghost" id="cs-st">' + (s.active ? '⏸ إيقاف' : '▶ تشغيل') + '</button><button class="btn" id="cs-pw2">' + ic('key', 15) + 'باسوورد جديد</button>' + (c.phone ? '<a class="btn go" target="_blank" rel="noopener" href="' + K.wa(c.phone, msg) + '">' + ic('wa', 15) + 'واتساب' + (fresh ? ' (اللينك + الباسوورد)' : '') + '</a>' : '') + '</div>', { wide: true });
+    $('#cs-wa-s', m.el).onclick = ev => busy(ev.currentTarget, async () => { await capi('POST', '/wa', { cid, wa: $('#cs-wa-n', m.el).value.trim() }); toast('اتحفظ رقم الواتساب'); });
+    $('#cs-pw2', m.el).onclick = async () => { if (!await confirm('تعمل باسوورد جديد؟', 'المركز هيخرج ولازم يدخل بالجديد.', 'باسوورد جديد')) return; const x = await capi('POST', '/pass', { cid }).catch(err); if (x) { m.close(); casesModal(cid, x.pass); } };
+    $('#cs-st', m.el).onclick = async () => { await capi('POST', '/stop', { cid, on: !s.active }).catch(err); toast(s.active ? 'لينك الحالات اتوقف' : 'لينك الحالات اشتغل'); m.close(); casesModal(cid); };
+    $('#cs-rt', m.el).onclick = async () => { if (!await confirm('تعمل لينك جديد؟', 'اللينك القديم هيقف (الباركودات اللي اتطبعت للمرضى مش بتتأثر).', 'لينك جديد')) return; await capi('POST', '/rotate', { cid }).catch(err); toast('اتعمل لينك جديد — ابعته للمركز'); m.close(); casesModal(cid); };
+  }
+  ACT.cases = b => casesModal(b.dataset.id).catch(err);
 
   start();
 })();

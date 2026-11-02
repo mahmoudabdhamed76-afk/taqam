@@ -118,6 +118,83 @@
     b.style.overflow = 'hidden'; b.appendChild(sp); setTimeout(() => sp.remove(), 600);
   }, { passive: true });
 
+
+  /* ── الشريط السفلي الزجاجي (نفس Ozarex): عدسة تحت التاب المفتوح، تلمس وتسحب = العدسة تكبر وتمشي مع صباعك وتكبّر اللي تحتها ── */
+  K.glass = function (bar) {
+    if (!bar || bar.__glass) { if (bar) bar.__sync(); return; }
+    const RM = matchMedia('(prefers-reduced-motion: reduce)');
+    const items = () => Array.from(bar.querySelectorAll(':scope > .bn-item'));
+    const c = document.createElement('span'); c.className = 'bn-glass'; c.setAttribute('aria-hidden', 'true'); c.innerHTML = '<span class="bn-lens-in"></span>';
+    bar.insertBefore(c, bar.firstChild);
+    let first = true, drag = null, block = 0;
+    const place = (x, w) => { c.__x = x; c.__w = w; c.style.width = w + 'px'; c.style.setProperty('--x', x + 'px'); };
+    const sync = () => {
+      if (drag) return;
+      if (c.parentNode !== bar) bar.insertBefore(c, bar.firstChild);
+      const a = items().find(b => b.classList.contains('on'));
+      if (!a || !a.offsetWidth) { c.classList.remove('on'); return; }
+      if (first) c.classList.add('no-anim');
+      place(a.offsetLeft, a.offsetWidth); c.classList.add('on');
+      if (first) { first = false; void c.offsetWidth; c.classList.remove('no-anim'); }
+    };
+    bar.__sync = () => requestAnimationFrame(sync);
+    const nearest = cx => { let best = null, d = 1e9; items().forEach(b => { const m = b.offsetLeft + b.offsetWidth / 2, k = Math.abs(m - cx); if (k < d) { d = k; best = b; } }); return best; };
+    const fill = () => {
+      const inn = c.querySelector('.bn-lens-in'); inn.textContent = '';
+      items().forEach(b => { const g = document.createElement('span'); g.className = 'bn-ghost'; b.childNodes.forEach(n => { if (n.nodeType === 1 && n.tagName.toLowerCase() === 'svg') g.appendChild(n.cloneNode(true)); else if (n.nodeType === 3 && n.textContent.trim()) { const t = document.createElement('span'); t.className = 'bn-gl'; t.setAttribute('data-t', n.textContent.trim()); g.appendChild(t); } }); inn.appendChild(g); });
+      const cs = getComputedStyle(bar); inn.style.width = bar.clientWidth + 'px'; inn.style.height = bar.clientHeight + 'px'; inn.style.padding = cs.padding;
+    };
+    const moveTo = cx => {
+      const w = c.__w || 70, x = Math.max(0, Math.min(bar.clientWidth - w, cx - w / 2));
+      place(x, w);
+      c.querySelector('.bn-lens-in').style.transform = 'translate3d(' + (-x - c.clientLeft) + 'px,' + (-c.offsetTop - c.clientTop) + 'px,0)';
+      const hot = nearest(x + w / 2), list = items(), i = list.indexOf(hot);
+      list.forEach((b, k) => b.classList.toggle('hot', k === i));
+      Array.from(c.querySelector('.bn-lens-in').children).forEach((b, k) => b.classList.toggle('hot', k === i));
+      return hot;
+    };
+    bar.addEventListener('pointerdown', e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      const f = e.target.closest('.bn-item'); if (!f) return;
+      const r = bar.getBoundingClientRect();
+      drag = { id: e.pointerId, x0: e.clientX, hot: f };
+      try { bar.setPointerCapture(e.pointerId); } catch (_) {}
+      if (!c.__w) place(f.offsetLeft, f.offsetWidth);
+      place(c.__x, f.offsetWidth); fill();
+      c.classList.add('on', 'drag'); bar.classList.add('dragging');
+      drag.hot = moveTo(e.clientX - r.left - bar.clientLeft);
+    });
+    bar.addEventListener('pointermove', e => {
+      if (!drag || e.pointerId !== drag.id) return;
+      const r = bar.getBoundingClientRect(); c.classList.add('follow');
+      drag.hot = moveTo(e.clientX - r.left - bar.clientLeft); e.preventDefault();
+    });
+    const up = e => {
+      if (!drag || e.pointerId !== drag.id) return;
+      const d = drag; drag = null;
+      try { bar.releasePointerCapture(e.pointerId); } catch (_) {}
+      c.classList.remove('follow', 'drag'); bar.classList.remove('dragging');
+      items().forEach(b => b.classList.remove('hot'));
+      block = Date.now() + 450;
+      setTimeout(() => { if (!drag) c.querySelector('.bn-lens-in').innerHTML = ''; }, 350);
+      const t = e.type === 'pointercancel' ? null : d.hot;
+      if (t) { place(t.offsetLeft, t.offsetWidth); setTimeout(() => { t.__ours = true; t.click(); t.__ours = false; bar.__sync(); }, RM.matches ? 0 : 140); }
+      else bar.__sync();
+    };
+    bar.addEventListener('pointerup', up); bar.addEventListener('pointercancel', up);
+    bar.addEventListener('click', e => { const b = e.target.closest('.bn-item'); if (b && b.__ours) return; if (Date.now() < block) { e.preventDefault(); e.stopImmediatePropagation(); } }, true);
+    addEventListener('resize', bar.__sync);
+    bar.__glass = true; bar.__sync();
+  };
+
+  /* ── منع الزوم (قرصة ودبل تاب) ── */
+  ['gesturestart', 'gesturechange'].forEach(t => document.addEventListener(t, e => e.preventDefault(), { passive: false }));
+  document.addEventListener('touchmove', e => { if (e.touches && e.touches.length > 1) e.preventDefault(); }, { passive: false });
+  let lastTouch = 0;
+  document.addEventListener('touchend', e => { const n = Date.now(); if (n - lastTouch < 320 && !e.target.closest('input,textarea,select,.leaflet-container')) e.preventDefault(); lastTouch = n; }, { passive: false });
+  document.addEventListener('wheel', e => { if (e.ctrlKey && !e.target.closest('.leaflet-container')) e.preventDefault(); }, { passive: false });
+  document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && ['+', '-', '=', '0'].includes(e.key)) e.preventDefault(); });
+
   /* ── count-up numbers ── */
   K.countUp = function (root) {
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -130,8 +207,8 @@
 
   /* ── map tiles (فاتحة) ── */
   K.tiles = function (map) {
-    const dark = K.theme.dark();
-    return L.tileLayer('https://{s}.basemaps.cartocdn.com/' + (dark ? 'dark_all' : 'rastertiles/voyager') + '/{z}/{x}/{y}{r}.png', { maxZoom: 19, subdomains: 'abcd', attribution: '© OpenStreetMap © CARTO' }).addTo(map);
+    /* صور الخريطة من سيرفرنا (OpenStreetMap) — من غير أي مفتاح */
+    return L.tileLayer('/tiles/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
   };
   K.empPin = (emp, live) => L.divIcon({ className: '', iconSize: [36, 36], iconAnchor: [18, 36], html: '<div class="pin ' + (live ? 'live' : '') + '" style="--h:' + (emp.hue == null ? 0 : emp.hue) + '">' + (emp.photo ? '<img src="' + K.esc(emp.photo) + '">' : '<span>' + K.esc(K.initials(emp.name)) + '</span>') + '</div>' });
   K.clientPin = () => L.divIcon({ className: '', iconSize: [14, 14], iconAnchor: [7, 7], html: '<div class="cpin"></div>' });
@@ -151,6 +228,8 @@
 
   /* ── icons (خط رفيع 1.8) ── */
   const P = {
+    qr: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 17h3v3h-3z"/>',
+    file: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M9 13h6M9 17h4"/>',
     eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
     eyeoff: '<path d="M17.9 17.9A10 10 0 0 1 12 19c-6.5 0-10-7-10-7a18 18 0 0 1 5.1-5.9M9.9 5.2A9 9 0 0 1 12 5c6.5 0 10 7 10 7a18 18 0 0 1-2.2 3.2M14.1 14.1a3 3 0 1 1-4.2-4.2M2 2l20 20"/>',
     user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',

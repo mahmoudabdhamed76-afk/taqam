@@ -56,15 +56,8 @@ body { min-height: 100dvh; padding-bottom: calc(104px + env(safe-area-inset-bott
 .visit-on { background: var(--card-grad); border: 1px solid var(--hivis); border-radius: 22px; padding: 14px 16px; display: grid; gap: 10px; box-shadow: 0 0 0 3px var(--hivis-soft); }
 .visit-on > .row > svg { color: var(--hivis); }
 
-/* ── الشريط السفلي العايم ── */
-.dock { position: fixed; inset-inline: 12px; bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 600; display: flex; justify-content: center; }
-.dock-in { display: grid; grid-template-columns: repeat(4, 1fr); width: 100%; max-width: 500px; padding: 6px; border-radius: 26px; background: color-mix(in srgb, #1A0709 90%, transparent); border: 1px solid var(--line-2); backdrop-filter: blur(16px); box-shadow: 0 18px 40px -16px rgba(0, 0, 0, .85); }
-:root[data-theme="light"] .dock-in { background: color-mix(in srgb, #fff 94%, transparent); }
-.dock button { position: relative; overflow: hidden; border: 0; background: transparent; display: grid; justify-items: center; gap: 3px; padding: 9px 4px 7px; font-size: 12px; font-weight: 700; color: var(--ink-2); cursor: pointer; border-radius: 20px; transition: color .2s, background .2s; }
-.dock button.on { color: var(--brand-2); background: var(--brand-soft); }
-.dock button.on svg { filter: drop-shadow(0 0 8px rgba(255, 59, 71, .7)); animation: pop .45s cubic-bezier(.3, 1.6, .5, 1); }
-@keyframes pop { from { transform: scale(.6) rotate(-15deg); } }
-.dock .badge { position: absolute; top: 4px; inset-inline-start: calc(50% + 6px); }
+#dock { max-width: 500px; margin: 0 auto; }
+@media (min-width: 540px) { #dock { inset-inline: 0; } }
 
 /* ── شهري ── */
 .mgrid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
