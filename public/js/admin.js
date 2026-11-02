@@ -12,8 +12,9 @@
   ];
   /* الصلاحيات: كل صفحة تبع أنهي قسم */
   const PAGE_PERM = { today: 'team', map: 'team', team: 'team', att: 'team', tasks: 'team', chat: 'team', faults: 'team', pay: 'pay', clients: 'clients', requests: 'clients', follow: 'clients', cases: 'cases', pacs: 'pacs' };
-  const has = k => !!(S.me && (S.me.perms || []).includes(k));
-  const can = p => !PAGE_PERM[p] || has(PAGE_PERM[p]);
+  const PACS_ONLY = ['pacs', 'settings'];
+  const has = k => !!(S.me && (S.me.perms || []).includes(k)) && (S.mode !== 'pacs' || k === 'pacs' || k === 'settings');
+  const can = p => (S.mode !== 'pacs' || PACS_ONLY.includes(p)) && (!PAGE_PERM[p] || has(PAGE_PERM[p]));
   const firstPage = () => (NAV.flatMap(g => g[1]).find(x => can(x[0])) || ['settings'])[0];
   function applyPerms() {
     for (let i = NAV.length - 1; i >= 0; i--) { NAV[i][1] = NAV[i][1].filter(x => can(x[0])); if (!NAV[i][1].length) NAV.splice(i, 1); }
@@ -38,7 +39,7 @@
   async function start() {
     let st; try { st = await get('/api/auth/state'); } catch (e) { st = { setup: false }; }
     if (st.setup) return gate(true, st);
-    try { const me = await get('/api/me'); S.me = me.user; S.allPerms = me.all_perms || {}; } catch (e) { return gate(false, st); }
+    try { const me = await get('/api/me'); S.me = me.user; S.allPerms = me.all_perms || {}; S.mode = me.mode; S.cloudPacs = me.cloud_pacs; if (S.mode === 'pacs') { delete S.allPerms.team; delete S.allPerms.pay; delete S.allPerms.clients; delete S.allPerms.cases; } } catch (e) { return gate(false, st); }
     applyPerms();
     await loadBoot();
     shell();
@@ -46,7 +47,7 @@
     route();
     live();
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').then(() => { K.pushAuto('/api'); K.seen('/api'); }).catch(() => {});
-    setTimeout(() => K.pushPrompt('/api', 'يوصلك حضور وانصراف الموظفين وطلبات العملاء والرسايل — برقم على الأيقونة وحتى والبرنامج مقفول.'), 2500);
+    setTimeout(() => K.pushPrompt('/api', S.mode === 'pacs' ? 'يوصلك إشعار أول ما حالة أشعة توصل من أي جهاز.' : 'يوصلك حضور وانصراف الموظفين وطلبات العملاء والرسايل — برقم على الأيقونة وحتى والبرنامج مقفول.'), 2500);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) { K.seen('/api'); refreshCounts(); ticker(true); } });
   }
   const logoSrc = st => esc((st && st.logo) || '/icons/icon.svg');
@@ -793,7 +794,7 @@
     await loadBoot(); tabs();
     const s = S.boot.settings;
     const sec = sessionStorage.getItem('tq-set') || S.setSec || (has('settings') ? 'company' : 'me'); sessionStorage.removeItem('tq-set'); S.setSec = sec;
-    const NAV = (has('settings') ? [['company', 'الشركة'], ['shift', 'الدوام'], ['track', 'الموقع والتتبع'], ['portal', 'لينك العميل'], ['pay', 'المرتبات'], ['users', 'المستخدمين والصلاحيات']] : []).concat([['me', 'حسابي والإشعارات']], has('settings') ? [['data', 'النسخة الاحتياطية']] : []);
+    const NAV = (has('settings') ? (S.mode === 'pacs' ? [['company', 'المركز'], ['users', 'المستخدمين والصلاحيات']] : [['company', 'الشركة'], ['shift', 'الدوام'], ['track', 'الموقع والتتبع'], ['portal', 'لينك العميل'], ['pay', 'المرتبات'], ['users', 'المستخدمين والصلاحيات']]) : []).concat([['me', 'حسابي والإشعارات']], has('settings') ? [['data', 'النسخة الاحتياطية']] : []);
     if (!NAV.some(x => x[0] === sec)) { S.setSec = 'me'; return R.settings(); }
     const F = (k, label, attrs) => '<label class="field"><span>' + label + '</span><input class="input" name="' + k + '" value="' + esc(s[k]) + '" ' + (attrs || '') + '></label>';
     const T = (k, label, ph) => '<label class="field"><span>' + label + '</span><textarea class="input" name="' + k + '" placeholder="' + esc(ph || '') + '">' + esc(s[k]) + '</textarea></label>';
@@ -1021,6 +1022,7 @@
   const copyBtn = t => '<button class="pc-copy" data-act="copy" data-text="' + esc(t) + '" title="انسخ">' + ic('copy', 14) + '</button>';
 
   R.pacs = async function (soft) {
+    if (S.cloudPacs) return pacsCloud();
     const qs = '?q=' + encodeURIComponent(PACS.q) + '&mod=' + encodeURIComponent(PACS.mod);
     const [st, li] = await Promise.all([get('/api/pacs/status'), get('/api/pacs/studies' + qs)]);
     PACS.st = st; PACS.list = li.studies; PACS.mods = li.mods;
@@ -1039,9 +1041,26 @@
       '<div id="pjobs" class="pjobs"></div><div id="pbody"></div>';
     heroNums(); drawJobs(); await ptab();
   };
+  /* على السيرفر (Railway): مفيش تخزين — الباكس بيتسطّب على كمبيوتر المركز */
+  function pacsCloud() {
+    let lan = ''; try { lan = localStorage.getItem('tq-pacs-lan') || ''; } catch (_) {}
+    const step = (n, t, d) => '<div class="ag-step"><span class="ag-n">' + n + '</span><div><b>' + t + '</b><div class="small muted">' + d + '</div></div></div>';
+    view().innerHTML = '<div class="ph"><div><h1>الباكس <span class="faint" style="font-size:.55em;font-weight:600">DICOM</span></h1><div class="sub">الحالات بتتخزن على كمبيوتر المركز نفسه — مفيش ولا صورة بتترفع على النت</div></div></div>' +
+      '<div class="card pacs-hero ag-hero"><div class="ag-ic">' + ic('server', 34) + '</div><div class="grow"><h2 style="margin:0 0 6px">الباكس على كمبيوتر المركز</h2><p class="muted" style="margin:0 0 14px">نزّل الحزمة على كمبيوتر في المركز (ويندوز). الأجهزة بتبعتله على الشبكة الداخلية بسرعة ومن غير نت، والحالات بتتحفظ على الهارد بتاعه — وتفتحها من أي جهاز على نفس الشبكة.</p>' +
+      '<div class="row" style="flex-wrap:wrap"><a class="btn primary" href="/pacs-agent.zip">' + ic('download', 16) + 'نزّل الباكس للكمبيوتر</a><a class="btn" href="http://localhost:8686/" target="_blank" rel="noopener">' + ic('scan', 16) + 'افتح الباكس (على الكمبيوتر ده)</a></div></div></div>' +
+      '<div class="card pad" style="margin-top:16px"><h3 style="margin-top:0">التسطيب — مرة واحدة</h3><div class="ag-steps">' +
+      step(1, 'سطّب Node.js 22 أو أحدث', 'من <a href="https://nodejs.org/en/download" target="_blank" rel="noopener">nodejs.org</a> — لو مش متسطّب.') +
+      step(2, 'فك الـ ZIP في مكان ثابت', 'مثلا <code dir="ltr">D:\\Taqam-PACS</code>') +
+      step(3, 'دبل كليك على <code dir="ltr">PACS-INSTALL.bat</code>', 'وافق على صلاحيات المدير: بيفتح البورتات في الفايروول، ويشغّل الباكس في الخلفية مع كل تشغيل للويندوز، ويعمل اختصار على سطح المكتب.') +
+      step(4, 'اعمل حساب المدير وظبّط الأجهزة', 'هتلاقي الـ AE Title والـ IP والبورت فوق في صفحة الباكس — اكتبهم في إعدادات DICOM Send على كل جهاز.') +
+      '</div></div>' +
+      '<div class="card pad" style="margin-top:16px"><h3 style="margin-top:0">فتح الباكس من جهاز تاني على الشبكة</h3><p class="small muted">اكتب عنوان كمبيوتر الباكس مرة (الـ IP بتاعه ظاهر في صفحة الباكس عنده) وهيتحفظ على الجهاز ده.</p><div class="row" style="flex-wrap:wrap"><input class="input" id="ag-lan" dir="ltr" placeholder="192.168.1.10" value="' + esc(lan) + '" style="max-width:240px"><button class="btn" id="ag-go">' + ic('scan', 15) + 'افتح</button></div></div>';
+    $('#ag-go').onclick = () => { let v = $('#ag-lan').value.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, ''); if (!v) return toast('اكتب الـ IP', 'err'); if (!/:\d+$/.test(v)) v += ':8686'; try { localStorage.setItem('tq-pacs-lan', v.replace(/:8686$/, '')); } catch (_) {} window.open('http://' + v + '/', '_blank', 'noopener'); };
+    return Promise.resolve();
+  }
   function heroNums() {
     const st = PACS.st, t = st.totals, dk = st.disk, el = $('#pnums'); if (!el) return;
-    el.innerHTML = '<div><b>' + n(t.n) + '</b><small>حالة</small></div><div><b>' + n(t.i) + '</b><small>صورة</small></div><div><b>' + fmtB(t.b) + '</b><small>المساحة</small></div>' + (dk ? '<div><b>' + fmtB(dk.free) + '</b><small>فاضي على السيرفر</small></div>' : '');
+    el.innerHTML = '<div><b>' + n(t.n) + '</b><small>حالة</small></div><div><b>' + n(t.i) + '</b><small>صورة</small></div><div><b>' + fmtB(t.b) + '</b><small>المساحة</small></div>' + (dk ? '<div><b>' + fmtB(dk.free) + '</b><small>' + (S.mode === 'pacs' ? 'فاضي على الهارد' : 'فاضي على السيرفر') + '</small></div>' : '');
   }
   async function ptab() {
     const b = $('#pbody'); if (!b) return;

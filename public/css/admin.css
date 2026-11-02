@@ -555,3 +555,12 @@ body { min-height: 100vh; }
 .perm:has(input:checked) { border-color: var(--brand); background: var(--brand-soft); }
 .perm:has(input:checked) .pi { background: var(--brand); color: #fff; }
 .perm:has(input:checked) > i { background: var(--brand); border-color: var(--brand); color: #fff; transform: scale(1.08); }
+/* الباكس على كمبيوتر المركز (صفحة السيرفر) */
+.ag-hero { display: flex; gap: 18px; align-items: flex-start; }
+.ag-ic { width: 72px; height: 72px; flex: none; border-radius: 22px; display: grid; place-items: center; background: var(--brand-grad); color: #fff; box-shadow: var(--brand-glow); animation: floatY 3s ease-in-out infinite; position: relative; z-index: 1; }
+.ag-hero .grow { position: relative; z-index: 1; }
+.ag-steps { display: grid; gap: 12px; }
+.ag-step { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border-radius: 14px; background: var(--card-2); border: 1px solid var(--line); }
+.ag-n { width: 32px; height: 32px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--brand-soft); color: var(--brand-2); font-weight: 800; }
+.ag-step code { background: var(--paper-2); padding: 1px 6px; border-radius: 6px; }
+@media (max-width: 640px) { .ag-hero { flex-direction: column; } }

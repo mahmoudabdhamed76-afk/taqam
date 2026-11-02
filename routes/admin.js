@@ -13,7 +13,7 @@ module.exports = function (R) {
   const who = c => c.user.name;
 
   /* ── الحساب ── */
-  R('GET', '/api/me', c => ({ user: { id: c.user.id, name: c.user.name, username: c.user.username, role: c.user.role, perms: PERMS.list(c.user) }, all_perms: PERMS.PERMS }));
+  R('GET', '/api/me', c => ({ user: { id: c.user.id, name: c.user.name, username: c.user.username, role: c.user.role, perms: PERMS.list(c.user) }, all_perms: PERMS.PERMS, mode: process.env.TAQAM_MODE === 'pacs' ? 'pacs' : 'full', cloud_pacs: require('../lib/pacs').CLOUD }));
   R('POST', '/api/me/password', c => {
     const u = db.prepare('SELECT * FROM users WHERE id = ?').get(c.user.id);
     if (!U.verify(c.body.old, u.pass)) fail('الباسورد الحالي غلط');

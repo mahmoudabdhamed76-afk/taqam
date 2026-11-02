@@ -62,7 +62,7 @@ function throttle(req) {
 async function authRoutes(req, res, url) {
   const p = url.pathname;
   if (p === '/api/health') return U.send(res, 200, { ok: true, v: VERSION });
-  if (p === '/api/auth/state') return U.send(res, 200, { setup: !db.prepare('SELECT 1 FROM users LIMIT 1').get(), company: U.cfg('company'), logo: U.cfg('logo') });
+  if (p === '/api/auth/state') return U.send(res, 200, { mode: pacs.MODE, setup: !db.prepare('SELECT 1 FROM users LIMIT 1').get(), company: U.cfg('company'), logo: U.cfg('logo') });
   if (p === '/api/auth/setup' && req.method === 'POST') {
     if (db.prepare('SELECT 1 FROM users LIMIT 1').get()) U.fail('الحساب الأساسي متعمل بالفعل', 403);
     const b = await U.readBody(req);
@@ -165,6 +165,10 @@ const server = http.createServer(async (req, res) => {
       if (!row) { res.writeHead(404); return res.end(); }
       const buf = Buffer.from(row.data);
       res.writeHead(200, { 'Content-Type': row.mime, 'Cache-Control': 'private, max-age=604800', 'Content-Length': buf.length }); return res.end(buf);
+    }
+    if (p === '/pacs-agent.zip') {   /* حزمة الباكس لكمبيوتر المركز */
+      const s = session(req, 'user'); if (!s) return U.send(res, 401, { message: 'سجّل دخول' }); if (!PERMS.has(s.who, 'pacs')) return U.send(res, 403, { message: 'مش من صلاحياتك' });
+      return pacs.zipStream(res, 'Taqam-PACS.zip', require('./lib/agent').items());
     }
     if (p === '/api/events') { if (!session(req, 'user')) return U.send(res, 401, { message: 'سجّل دخول' }); return U.sseOpen(req, res); }
 
