@@ -404,3 +404,30 @@ body { min-height: 100vh; }
 @media (max-width: 520px) { .fixqr { flex-direction: column; text-align: center; } .fixqr .row { justify-content: center; } }
 .tl-now:not([data-t])::before { display: none; }
 .tl-scale .tl-now { border: 0; opacity: 1; }
+
+/* ════ المهام (قايمة ورا بعض) ════ */
+.tkfs { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 0 -4px 14px; padding: 2px 4px 6px; }
+.tkfs::-webkit-scrollbar { display: none; }
+.tkf { position: relative; overflow: hidden; flex: none; display: inline-flex; align-items: center; gap: 7px; height: 42px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line-2); background: var(--card-2); color: var(--ink-2); font-weight: 700; font-size: 14px; cursor: pointer; transition: all .25s; }
+.tkf em { font-style: normal; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: var(--paper-2); color: var(--ink-2); display: grid; place-items: center; font-size: 12px; font-variant-numeric: tabular-nums; }
+.tkf.on { background: var(--brand-grad); border-color: transparent; color: #fff; box-shadow: var(--brand-glow); }
+.tkf.on em { background: rgba(255, 255, 255, .22); color: #fff; }
+.tkf.on svg { animation: icoPop .5s cubic-bezier(.3, 1.6, .5, 1); }
+.tk-cards { display: grid; grid-template-columns: 1fr; gap: 12px; }
+@media (min-width: 1100px) { .tk-cards { grid-template-columns: 1fr 1fr; } }
+.tk-card { padding: 4px 14px 12px; animation: cardIn .55s cubic-bezier(.2, .9, .3, 1.15) both; position: relative; overflow: hidden; }
+.tk-card::before { content: ''; position: absolute; inset-inline-start: 0; top: 0; bottom: 0; width: 4px; background: var(--line-2); }
+.tk-card.on_way::before { background: var(--brand-grad); box-shadow: 0 0 14px rgba(229, 35, 47, .8); }
+.tk-card.arrived::before { background: var(--hivis); }
+.tk-card.done::before { background: var(--go); }
+.tk-card.accepted::before { background: var(--brand-2); opacity: .6; }
+.tk-card.on_way { border-color: var(--edge); }
+@keyframes cardIn { from { opacity: 0; transform: translateY(18px) scale(.97); } }
+.tk-card .trk { border-top: 0; padding-top: 12px; }
+.tk-note { margin: 2px 4px 0; padding: 9px 12px; border-radius: 12px; background: var(--input); border: 1px solid var(--line); font-size: 14px; white-space: pre-wrap; }
+.tk-note.ok { border-color: rgba(52, 211, 153, .35); color: var(--go); }
+.tk-ft { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 10px 4px 0; }
+.tk-empty { display: grid; justify-items: center; text-align: center; padding: 40px 18px; gap: 6px; }
+.tk-empty b { font: 800 20px var(--f-display); }
+.tk-empty-ic { width: 76px; height: 76px; border-radius: 24px; display: grid; place-items: center; background: var(--brand-grad); color: #fff; box-shadow: 0 18px 40px -14px rgba(229, 35, 47, .9); margin-bottom: 8px; }
+@media (max-width: 600px) { .trk-hd { flex-wrap: wrap; } .trk-st { margin-inline-start: 40px; } }
