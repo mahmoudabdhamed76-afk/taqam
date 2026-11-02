@@ -38,7 +38,7 @@
     const d = Math.round(h / 24); return d === 1 ? 'امبارح' : 'من ' + d + ' يوم';
   };
   K.initials = name => String(name || '؟').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('');
-  K.av = (emp, cls) => '<span class="av ' + (cls || '') + '" style="--h:' + (emp && emp.hue != null ? emp.hue : 222) + '">' + (emp && emp.photo ? '<img src="' + K.esc(emp.photo) + '" alt="">' : K.esc(K.initials(emp && emp.name))) + '</span>';
+  K.av = (emp, cls) => '<span class="av ' + (cls || '') + '" style="--h:' + (emp && emp.hue != null ? emp.hue : 0) + '">' + (emp && emp.photo ? '<img src="' + K.esc(emp.photo) + '" alt="">' : K.esc(K.initials(emp && emp.name))) + '</span>';
   K.phone = p => { let d = String(p || '').replace(/\D/g, ''); if (d.startsWith('0')) d = '2' + d; else if (d.startsWith('1') && d.length === 10) d = '20' + d; return d; };
   K.wa = (p, text) => 'https://wa.me/' + K.phone(p) + (text ? '?text=' + encodeURIComponent(text) : '');
 
@@ -100,21 +100,40 @@
   });
   K.battery = async () => { try { const b = await navigator.getBattery(); return Math.round(b.level * 100); } catch (_) { return null; } };
 
-  /* ── theme ── */
+  /* ── theme: غامق افتراضيًا زي Ozarex ── */
   K.theme = {
-    get: () => { try { return localStorage.getItem('tq-theme') || 'auto'; } catch (_) { return 'auto'; } },
+    get: () => { try { return localStorage.getItem('tq-theme') || 'dark'; } catch (_) { return 'dark'; } },
     set(v) { try { localStorage.setItem('tq-theme', v); } catch (_) {} K.theme.apply(); },
-    apply() { const v = K.theme.get(); if (v === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', v); },
-    dark: () => { const v = K.theme.get(); return v === 'dark' || (v === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches); }
+    apply() { document.documentElement.setAttribute('data-theme', K.theme.get() === 'light' ? 'light' : 'dark'); const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = K.theme.dark() ? '#070304' : '#FFF6F6'; },
+    dark: () => K.theme.get() !== 'light'
   };
   K.theme.apply();
+
+  /* ── ripple on press ── */
+  document.addEventListener('pointerdown', e => {
+    const b = e.target.closest('.btn,.nav-item,.bn-item,.rp'); if (!b || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const r = b.getBoundingClientRect(), d = Math.max(r.width, r.height), sp = document.createElement('span');
+    sp.className = 'ripple'; sp.style.cssText = 'width:' + d + 'px;height:' + d + 'px;left:' + (e.clientX - r.left - d / 2) + 'px;top:' + (e.clientY - r.top - d / 2) + 'px';
+    if (getComputedStyle(b).position === 'static') b.style.position = 'relative';
+    b.style.overflow = 'hidden'; b.appendChild(sp); setTimeout(() => sp.remove(), 600);
+  }, { passive: true });
+
+  /* ── count-up numbers ── */
+  K.countUp = function (root) {
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    (root || document).querySelectorAll('[data-count]').forEach(el => {
+      const to = Number(el.dataset.count) || 0, dec = to % 1 ? 2 : 0, t0 = performance.now(), dur = 700;
+      const step = t => { const k = Math.min(1, (t - t0) / dur), v = to * (1 - Math.pow(1 - k, 3)); el.textContent = Number(v).toLocaleString('en-US', { maximumFractionDigits: dec }); if (k < 1) requestAnimationFrame(step); };
+      requestAnimationFrame(step);
+    });
+  };
 
   /* ── map tiles (فاتحة) ── */
   K.tiles = function (map) {
     const dark = K.theme.dark();
     return L.tileLayer('https://{s}.basemaps.cartocdn.com/' + (dark ? 'dark_all' : 'rastertiles/voyager') + '/{z}/{x}/{y}{r}.png', { maxZoom: 19, subdomains: 'abcd', attribution: '© OpenStreetMap © CARTO' }).addTo(map);
   };
-  K.empPin = (emp, live) => L.divIcon({ className: '', iconSize: [36, 36], iconAnchor: [18, 36], html: '<div class="pin ' + (live ? 'live' : '') + '" style="--h:' + (emp.hue || 222) + '">' + (emp.photo ? '<img src="' + K.esc(emp.photo) + '">' : '<span>' + K.esc(K.initials(emp.name)) + '</span>') + '</div>' });
+  K.empPin = (emp, live) => L.divIcon({ className: '', iconSize: [36, 36], iconAnchor: [18, 36], html: '<div class="pin ' + (live ? 'live' : '') + '" style="--h:' + (emp.hue == null ? 0 : emp.hue) + '">' + (emp.photo ? '<img src="' + K.esc(emp.photo) + '">' : '<span>' + K.esc(K.initials(emp.name)) + '</span>') + '</div>' });
   K.clientPin = () => L.divIcon({ className: '', iconSize: [14, 14], iconAnchor: [7, 7], html: '<div class="cpin"></div>' });
 
   /* ── push ── */
@@ -132,6 +151,13 @@
 
   /* ── icons (خط رفيع 1.8) ── */
   const P = {
+    eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+    eyeoff: '<path d="M17.9 17.9A10 10 0 0 1 12 19c-6.5 0-10-7-10-7a18 18 0 0 1 5.1-5.9M9.9 5.2A9 9 0 0 1 12 5c6.5 0 10 7 10 7a18 18 0 0 1-2.2 3.2M14.1 14.1a3 3 0 1 1-4.2-4.2M2 2l20 20"/>',
+    user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+    lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+    menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
+    panel: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/>',
+    grid: '<rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/>',
     sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
     moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
     plus: '<path d="M12 5v14M5 12h14"/>', x: '<path d="M18 6 6 18M6 6l12 12"/>', check: '<path d="m5 12 5 5L20 7"/>',

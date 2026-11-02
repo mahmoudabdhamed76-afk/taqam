@@ -4,11 +4,14 @@
   const { esc, $, $$, get, post, n, money, hm, hm24, dm, dmy, ic, av, toast, err, modal, confirm, form, busy } = K;
   const S = { me: null, boot: null, world: 'team', page: 'today', counts: {}, cache: {}, maps: {} };
   const cur = () => (S.boot && S.boot.settings.currency) || 'ج.م';
-  const PAGES = {
-    team: [['today', 'اليوم', 'today'], ['map', 'الخريطة', 'map'], ['team', 'الموظفين', 'users'], ['att', 'الحضور', 'cal'], ['tasks', 'المهام', 'task'], ['pay', 'المرتبات', 'cash'], ['chat', 'المحادثات', 'chat'], ['faults', 'بنك الأعطال', 'tool']],
-    clients: [['clients', 'العملاء', 'store'], ['requests', 'الطلبات', 'inbox'], ['follow', 'المتابعات', 'phone']]
-  };
-  const worldOf = p => PAGES.clients.some(x => x[0] === p) ? 'clients' : 'team';
+  const NAV = [
+    ['الفريق', [['today', 'لوحة اليوم', 'today'], ['map', 'الخريطة الحيّة', 'map'], ['team', 'الموظفين', 'users'], ['att', 'الحضور والانصراف', 'cal'], ['tasks', 'المهام', 'task'], ['pay', 'المرتبات', 'cash'], ['chat', 'المحادثات', 'chat'], ['faults', 'بنك الأعطال', 'tool']]],
+    ['متابعة العملاء', [['clients', 'العملاء والمراكز', 'store'], ['requests', 'طلبات العملاء', 'inbox'], ['follow', 'المتابعات', 'phone']]],
+    ['النظام', [['settings', 'الإعدادات', 'gear']]]
+  ];
+  const ALLP = NAV.flatMap(g => g[1]);
+  const titleOf = p => (ALLP.find(x => x[0] === p) || ['', 'طاقم'])[1];
+  const BNAV = [['today', 'الرئيسية', 'home'], ['tasks', 'المهام', 'task'], ['team', 'الفريق', 'users'], ['clients', 'العملاء', 'store']];
   const STATE = { in: ['في الشغل', 'go'], on_way: ['في الطريق لمهمة', 'hivis'], visit: ['في زيارة', 'hivis'], out: ['انصرف', ''], absent: ['مجاش', 'stop'], rest: ['أجازة', ''], not_yet: ['لسه ميعاده مجاش', ''] };
   const TASK = { new: ['جديدة', 'sky'], on_way: ['في الطريق', 'hivis'], arrived: ['وصل', 'go'], done: ['خلصت', ''], cancelled: ['اتلغت', 'stop'] };
   const REQ = { new: ['جديد', 'hivis'], ok: ['اتأكد', 'sky'], sent: ['خلص', 'go'], no: ['اتلغى', 'stop'] };
@@ -32,41 +35,64 @@
     live();
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
   }
+  const logoSrc = st => esc((st && st.logo) || '/icons/icon.svg');
   function gate(setup, st) {
-    $('#root').innerHTML = '<div class="gate"><div class="gate-art"><div class="stripes"><i></i><i></i></div><h1>' + esc((st && st.company) || 'طاقم') + '</h1><p>الفريق في الميدان، والعملاء على الخط — في مكان واحد.</p></div>' +
-      '<div class="gate-form"><form id="gf" autocomplete="on">' +
-      (setup ? '<h2>أول مرة؟ اعمل حساب المدير</h2><p class="muted">الحساب ده هيبقى المدير العام، وتقدر تضيف مديرين تانيين بعدين.</p>' +
-        '<label class="field"><span>اسمك</span><input class="input" name="name" required></label>' +
-        '<label class="field"><span>اسم الشركة</span><input class="input" name="company" placeholder="مثلاً: إمداد للتوريدات"></label>' +
-        '<label class="field"><span>اسم الدخول (إنجليزي)</span><input class="input" name="username" dir="ltr" autocomplete="username" required></label>' +
-        '<label class="field"><span>الباسورد</span><input class="input" type="password" name="password" autocomplete="new-password" required minlength="6"></label>' +
-        '<button class="btn primary" style="min-height:48px">ابدأ</button>'
-        : '<h2>تسجيل الدخول</h2>' +
-        '<label class="field"><span>اسم الدخول</span><input class="input" name="username" dir="ltr" autocomplete="username" required></label>' +
-        '<label class="field"><span>الباسورد</span><input class="input" type="password" name="password" autocomplete="current-password" required></label>' +
-        '<button class="btn primary" style="min-height:48px">دخول</button><p class="faint small">الموظفين بيدخلوا من <a href="/app">تطبيق الموظف</a>.</p>') +
-      '</form></div></div>';
+    const name = (st && st.company) || 'طاقم';
+    const splash = sessionStorage.getItem('tq-splash') ? '' :
+      '<div class="splash" id="splash"><div class="aur a1"></div><div class="aur a2"></div><div class="aur a3"></div><div class="grid-bg"></div><div class="sp-in"><div class="sp-word">' +
+      (w => w.length > 1 ? '<span>' + esc(w[0]) + '</span> <span class="r">' + esc(w.slice(1).join(' ')) + '</span>' : '<span>' + esc(name) + '</span>')(name.trim().split(/\s+/)) +
+      '</div><div class="sp-tag">' + esc(name) + ' · <b>الفريق في الميدان</b> والعملاء على الخط</div><div class="sp-line"></div></div><div class="sp-hint">دوس في أي حتة للدخول</div></div>';
+    $('#root').innerHTML = splash + '<div class="gate"><div class="aur a1"></div><div class="aur a2"></div><form class="gate-card" id="gf" autocomplete="on">' +
+      '<div class="gate-logo"><img src="' + logoSrc(st) + '" alt=""></div>' +
+      (setup ? '<h2>أهلاً بيك</h2><p class="sub">اعمل حساب المدير العام عشان تبدأ</p>' +
+        '<div class="gin">' + ic('users', 18) + '<input class="input" name="name" placeholder="اسمك" required></div>' +
+        '<div class="gin">' + ic('store', 18) + '<input class="input" name="company" placeholder="اسم الشركة"></div>' +
+        '<div class="gin">' + ic('key', 18) + '<input class="input" name="username" dir="ltr" placeholder="اسم الدخول (إنجليزي)" autocomplete="username" required style="text-align:right"></div>' +
+        '<div class="gin">' + ic('key', 18) + '<input class="input" type="password" name="password" placeholder="الباسورد (6 حروف على الأقل)" autocomplete="new-password" required minlength="6"><button type="button" class="eye" aria-label="إظهار الباسورد">' + ic('eye', 18) + '</button></div>' +
+        '<button class="btn primary">ابدأ</button>'
+        : '<h2>' + esc(name) + '</h2><p class="sub">سجّل دخولك إلى لوحة الإدارة</p>' +
+        '<div class="gin">' + ic('user', 18) + '<input class="input" name="username" dir="ltr" placeholder="اسم المستخدم" autocomplete="username" required style="text-align:right"></div>' +
+        '<div class="gin">' + ic('lock', 18) + '<input class="input" type="password" name="password" placeholder="كلمة المرور" autocomplete="current-password" required><button type="button" class="eye" aria-label="إظهار الباسورد">' + ic('eye', 18) + '</button></div>' +
+        '<button class="btn primary">تسجيل الدخول</button>') +
+      '<div class="gchips"><span><i style="background:#34D399"></i>مزامنة لحظية</span><span><i style="background:#60A5FA"></i>تتبع بالموقع</span><span><i style="background:#C084FC"></i>آمن ومشفّر</span></div>' +
+      '</form><div class="gate-foot">' + esc(name) + ' — الموظفين بيدخلوا من <a href="/app">تطبيق الموظف</a></div></div>';
+    const sp = $('#splash');
+    const openGate = () => { if (!sp || sp.classList.contains('go')) return; sp.classList.add('go'); sessionStorage.setItem('tq-splash', '1'); setTimeout(() => { sp.remove(); const i = $('#gf input'); if (i) i.focus(); }, 600); };
+    if (sp) { sp.onclick = openGate; document.addEventListener('keydown', openGate, { once: true }); setTimeout(openGate, 4200); }
+    else setTimeout(() => { const i = $('#gf input'); if (i) i.focus(); }, 80);
+    $$('.eye').forEach(b => b.onclick = () => { const i = b.previousElementSibling; i.type = i.type === 'password' ? 'text' : 'password'; b.innerHTML = ic(i.type === 'password' ? 'eye' : 'eyeoff', 18); });
     $('#gf').onsubmit = e => { e.preventDefault(); busy(e.submitter, async () => { await post(setup ? '/api/auth/setup' : '/api/auth/login', form($('#gf'))); location.reload(); }); };
-    setTimeout(() => { const i = $('#gf input'); if (i) i.focus(); }, 50);
   }
   async function loadBoot() { S.boot = await get('/api/boot'); S.counts = S.boot.counts; }
 
-  /* ════════ الهيكل ════════ */
+  /* ════════ الهيكل: قايمة جانبية + شريط علوي (زي EmdadX) ════════ */
+  const badgeOf = k => ({ requests: S.counts.requests, follow: S.counts.follow, chat: S.counts.chat, tasks: S.counts.tasks })[k] || 0;
   function shell() {
     const s = S.boot.settings;
-    $('#root').innerHTML =
-      '<header class="top"><div class="top-in"><div class="top-row">' +
-      '<a class="brand" href="#/today"><span class="mark">' + '<img src="' + esc(s.logo || '/icons/icon.svg') + '" alt="">' + '</span><span class="brand-t"><b>' + esc(s.company) + '</b><span>' + esc(s.tagline || '') + '</span></span></a>' +
-      '<div class="seg worlds" role="tablist"><button data-act="world" data-w="team">' + ic('users', 16) + 'الفريق</button><button data-act="world" data-w="clients">' + ic('store', 16) + 'العملاء <span class="badge" id="b-world" hidden></span></button></div>' +
-      '<div class="top-act"><button class="btn ghost icon" data-act="theme" title="فاتح / غامق" aria-label="فاتح / غامق">' + ic(K.theme.dark() ? 'sun' : 'moon') + '</button><button class="btn ghost icon" data-act="go" data-p="settings" title="الإعدادات" aria-label="الإعدادات">' + ic('gear') + '</button><button class="btn ghost icon" data-act="logout" title="خروج" aria-label="خروج">' + ic('out') + '</button></div>' +
-      '</div><nav class="tabs" id="tabs"></nav></div></header><main class="page" id="view"></main>';
+    let rail = false; try { rail = localStorage.getItem('tq-rail') === '1'; } catch (_) {}
+    const liveBox = '<div class="live" id="live"><div class="live-tag"><span class="dot live"></span>مباشر</div><div class="live-win"><div class="live-track" id="live-track"><span>بيحمّل…</span></div></div></div>';
+    $('#root').innerHTML = '<div class="app ' + (rail ? 'rail' : '') + '" id="app">' +
+      '<aside class="side"><a class="brand" href="#/today"><span class="logo"><img src="' + logoSrc(s) + '" alt=""></span><span class="brand-t"><b>' + esc(s.company) + '</b><span>نظام الإدارة</span></span><button class="rail-btn" data-act="rail" title="تصغير القايمة" aria-label="تصغير القايمة">' + ic('panel', 16) + '</button></a>' +
+      '<nav class="nav" id="nav"></nav><div class="side-foot"><button class="out-btn" data-act="logout">' + ic('out', 18) + '<span>تسجيل خروج</span></button></div></aside>' +
+      '<div class="main"><header class="top"><button class="ib" data-act="rail" aria-label="القايمة">' + ic('menu', 20) + '</button><button class="ib" data-act="back" aria-label="رجوع" id="backb">' + ic('back', 18) + '</button><h1 class="top-title" id="ttl"></h1><button class="ib" data-act="go" data-p="today" aria-label="الرئيسية">' + ic('home', 19) + '</button>' +
+      '<button class="top-search" data-act="quick">' + ic('search', 16) + '<span>ابحث… أو اضغط</span><kbd>Ctrl+K</kbd></button>' + liveBox + '<span class="top-sp"></span>' +
+      '<button class="ib" data-act="refresh" aria-label="تحديث">' + ic('refresh', 18) + '</button><button class="ib" data-act="theme" aria-label="فاتح / غامق" id="thb">' + ic(K.theme.dark() ? 'sun' : 'moon', 18) + '</button><button class="ib" data-act="bell" aria-label="التنبيهات">' + ic('bell', 19) + '<span class="nd" id="bell-dot" hidden></span></button></header>' +
+      '<header class="mhead"><div class="mhead-row"><button class="ib" data-act="more" aria-label="القايمة">' + ic('menu', 20) + '</button><span class="brand-t"><b>' + esc(s.company) + '</b><span>' + esc(S.me.name) + '</span></span><button class="ib" data-act="bell" aria-label="التنبيهات">' + ic('bell', 19) + '<span class="nd" id="bell-dot2" hidden></span></button><button class="ib" data-act="quick" aria-label="بحث">' + ic('search', 19) + '</button><button class="ib" data-act="theme" aria-label="فاتح / غامق">' + ic(K.theme.dark() ? 'sun' : 'moon', 18) + '</button></div>' + liveBox.replace('id="live"', '').replace('id="live-track"', 'id="live-track2"') + '</header>' +
+      '<main class="page" id="view"></main></div></div>' +
+      '<nav class="bnav" id="bnav"></nav>';
+    document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); quick(); } });
   }
   function tabs() {
-    S.world = worldOf(S.page);
-    $$('.worlds button').forEach(b => b.classList.toggle('on', b.dataset.w === S.world && S.page !== 'settings'));
-    const badge = { requests: S.counts.requests, follow: S.counts.follow, chat: S.counts.chat, tasks: S.counts.tasks };
-    $('#tabs').innerHTML = PAGES[S.world].map(([k, t, i]) => '<button class="tab ' + (k === S.page ? 'on' : '') + '" data-act="go" data-p="' + k + '">' + ic(i, 17) + t + (badge[k] ? ' <span class="badge" ' + (k === 'tasks' ? 'style="background:var(--ink-3)"' : '') + '>' + badge[k] + '</span>' : '') + '</button>').join('');
-    const wb = $('#b-world'); const wn = (S.counts.requests || 0) + (S.counts.follow || 0); wb.hidden = !wn || S.world === 'clients'; wb.textContent = wn;
+    const nav = $('#nav'); if (!nav) return;
+    nav.innerHTML = NAV.map(([sec, items]) => '<div class="nav-sec">' + sec + '</div>' + items.map(([k, t, i]) => { const b = badgeOf(k); return '<a class="nav-item ' + (k === S.page ? 'on' : '') + '" href="#/' + k + '" title="' + t + '"><span class="ni">' + ic(i, 19) + '</span><span class="lbl">' + t + '</span>' + (b ? '<span class="badge">' + b + '</span><i class="dotb"></i>' : '') + '</a>'; }).join('')).join('');
+    const bn = $('#bnav');
+    const inMore = !BNAV.some(x => x[0] === S.page);
+    const moreN = ['requests', 'follow', 'chat'].reduce((s2, k) => s2 + badgeOf(k), 0);
+    bn.innerHTML = BNAV.map(([k, t, i]) => '<button class="bn-item ' + (k === S.page ? 'on' : '') + '" data-act="go" data-p="' + k + '">' + ic(i, 22) + t + (badgeOf(k) ? '<span class="badge">' + badgeOf(k) + '</span>' : '') + '</button>').join('') +
+      '<button class="bn-item ' + (inMore ? 'on' : '') + '" data-act="more">' + ic('grid', 22) + 'المزيد' + (moreN ? '<span class="badge">' + moreN + '</span>' : '') + '</button>';
+    $('#ttl').textContent = titleOf(S.page);
+    const alerts = (S.counts.requests || 0) + (S.counts.follow || 0) + (S.counts.chat || 0);
+    ['#bell-dot', '#bell-dot2'].forEach(x => { const d = $(x); if (d) d.hidden = !alerts; });
   }
   function route() {
     const p = (location.hash.replace(/^#\/?/, '').split('?')[0]) || 'today';
@@ -74,12 +100,70 @@
     closeDrawer(); $$('.scrim').forEach(x => x.remove());
     Object.values(S.maps).forEach(m => { try { m.remove(); } catch (_) {} }); S.maps = {};
     tabs();
+    document.title = titleOf(S.page) + ' — ' + S.boot.settings.company;
+    view().classList.remove('enter');
     view().innerHTML = '<div class="empty faint">بيحمّل…</div>';
-    R[S.page]().catch(e => { if (e.status === 401) location.reload(); else view().innerHTML = '<div class="empty"><b>محصلش</b>' + esc(e.message) + '</div>'; });
+    R[S.page]().then(() => { const v = view(); v.classList.remove('enter'); void v.offsetWidth; v.classList.add('enter'); K.countUp(v); }).catch(e => { if (e.status === 401) location.reload(); else view().innerHTML = '<div class="empty"><b>محصلش</b>' + esc(e.message) + '</div>'; });
     window.scrollTo(0, 0);
+    ticker();
   }
   async function refreshCounts() { try { S.counts = await get('/api/counts'); tabs(); } catch (_) {} }
   const go = p => { if (location.hash === '#/' + p) route(); else location.hash = '#/' + p; };
+
+  /* شريط «مباشر»: آخر حالة لكل موظف + أرقام اليوم */
+  let tickAt = 0;
+  async function ticker(force) {
+    if (!force && Date.now() - tickAt < 20000) return; tickAt = Date.now();
+    const d = await get('/api/today').catch(() => null); if (!d) return;
+    const STX = { in: 'في الشغل', on_way: 'في الطريق', visit: 'عند عميل', out: 'انصرف', absent: 'مجاش', rest: 'أجازة', not_yet: 'لسه' };
+    const items = [['في الشغل', d.board.filter(b => ['in', 'on_way', 'visit'].includes(b.state)).length], ['طلبات جديدة', d.counts.requests || 0], ['متابعات النهارده', d.counts.follow || 0]].map(([t, v]) => '<span><i>▾</i>' + v + ' ' + t + '</span>')
+      .concat(d.board.map(b => { const t = b.tasks.find(x => x.status === 'on_way'); return '<span><i>▾</i>' + esc(b.emp.name) + ' — ' + (t ? 'في الطريق لـ ' + esc(t.client_name || t.title) : (STX[b.state] || '')) + '</span>'; }));
+    const html = items.concat(items).join('');
+    ['#live-track', '#live-track2'].forEach(x => { const el = $(x); if (el) el.innerHTML = html; });
+  }
+
+  /* المزيد (موبايل) */
+  function moreSheet() {
+    const m = modal('<div class="modal-hd"><h3>كل الأقسام</h3><button class="btn ghost icon" data-close aria-label="قفل">' + ic('x') + '</button></div>' +
+      NAV.map(([sec, items]) => '<div class="small muted" style="margin:12px 4px 8px;font-weight:700">' + sec + '</div><div class="sheet-grid">' + items.map(([k, t, i]) => '<button class="sheet-tile ' + (k === S.page ? 'on' : '') + '" data-go="' + k + '"><span class="ti">' + ic(i, 22) + '</span>' + t + (badgeOf(k) ? '<span class="badge">' + badgeOf(k) + '</span>' : '') + '</button>').join('') + '</div>').join('') +
+      '<button class="out-btn" style="width:100%;margin-top:16px;justify-content:center" data-act="logout">' + ic('out', 18) + '<span>تسجيل خروج</span></button>');
+    $$('[data-go]', m.el).forEach(b => b.onclick = () => { m.close(); go(b.dataset.go); });
+  }
+  /* Ctrl+K: انتقال سريع لأي قسم أو موظف أو عميل */
+  async function quick() {
+    if ($('#qk')) return;
+    const m = modal('<div id="qk"><div class="gin">' + ic('search', 18) + '<input class="input" id="qk-q" placeholder="اكتب اسم قسم أو موظف أو عميل…" autocomplete="off"></div><div class="qk-list" id="qk-l"></div></div>');
+    const cl = await clientsList().catch(() => []);
+    const all = ALLP.map(([k, t, i]) => ({ t, i, sub: 'قسم', run: () => go(k) }))
+      .concat((S.boot.employees || []).map(e => ({ t: e.name, i: 'users', sub: e.job || 'موظف', run: () => empDay(e.id) })))
+      .concat(cl.map(c => ({ t: c.name, i: 'store', sub: c.grp || 'عميل', run: () => clientDrawer(c.id) })));
+    let sel = 0, list = [];
+    const nq = x => String(x || '').toLowerCase().replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي');
+    const draw = () => {
+      const q = nq($('#qk-q', m.el).value.trim());
+      list = (q ? all.filter(x => nq(x.t + ' ' + x.sub).includes(q)) : all.slice(0, ALLP.length)).slice(0, 30);
+      sel = Math.min(sel, Math.max(0, list.length - 1));
+      $('#qk-l', m.el).innerHTML = list.map((x, i) => '<button class="qk-it ' + (i === sel ? 'sel' : '') + '" data-i="' + i + '">' + ic(x.i, 17) + esc(x.t) + '<small>' + esc(x.sub) + '</small></button>').join('') || '<div class="empty small">مفيش نتايج</div>';
+      $$('[data-i]', m.el).forEach(b => b.onclick = () => { m.close(); list[+b.dataset.i].run(); });
+    };
+    $('#qk-q', m.el).oninput = () => { sel = 0; draw(); };
+    $('#qk-q', m.el).onkeydown = e => { if (e.key === 'ArrowDown') { sel++; draw(); e.preventDefault(); } else if (e.key === 'ArrowUp') { sel = Math.max(0, sel - 1); draw(); e.preventDefault(); } else if (e.key === 'Enter' && list[sel]) { m.close(); list[sel].run(); } };
+    draw();
+  }
+  /* التنبيهات */
+  async function bell() {
+    const d = await get('/api/today').catch(err); if (!d) return;
+    const late = d.board.filter(b => b.late_min > 0 && b.att.length), absent = d.board.filter(b => b.state === 'absent');
+    const row = (i, cls, t, sub, act) => '<button class="qk-it" ' + act + '><span class="ic" style="width:36px;height:36px;border-radius:12px;display:grid;place-items:center;background:var(--' + cls + '-soft);color:var(--' + cls + ')">' + ic(i, 17) + '</span><span style="display:grid;text-align:start"><b>' + t + '</b><small style="margin:0">' + sub + '</small></span></button>';
+    const items = [].concat(
+      d.requests.filter(r => r.status === 'new').map(r => row(r.kind === 'maint' ? 'tool' : 'box', 'brand', esc(r.client_name), r.kind === 'maint' ? 'طلب صيانة جديد' : 'طلب ورق جديد', 'data-act="go" data-p="requests"')),
+      d.follow.map(c => row('phone', 'sky', esc(c.name), c.next_follow < today() ? 'متابعة متأخرة من ' + dm(c.next_follow) : 'متابعة النهارده', 'data-act="client" data-id="' + c.id + '"')),
+      S.counts.chat ? [row('chat', 'go', S.counts.chat + ' رسالة جديدة', 'من الموظفين', 'data-act="go" data-p="chat"')] : [],
+      late.map(b => row('clock', 'late', esc(b.emp.name), 'اتأخر ' + K.mins(b.late_min), 'data-act="emp" data-id="' + b.emp.id + '"')),
+      absent.map(b => row('x', 'stop', esc(b.emp.name), 'مسجّلش حضور النهارده', 'data-act="emp" data-id="' + b.emp.id + '"')));
+    const m = modal('<div class="modal-hd"><h3>التنبيهات</h3><button class="btn ghost icon" data-close aria-label="قفل">' + ic('x') + '</button></div><div class="qk-list" style="max-height:65vh">' + (items.join('') || '<div class="empty"><b>كله تمام</b>مفيش حاجة محتاجة انتباهك دلوقتي.</div>') + '</div>');
+    m.el.addEventListener('click', e => { if (e.target.closest('[data-act]')) m.close(); });
+  }
 
   /* ── البث المباشر ── */
   let lastSoft = 0, softT = null;
@@ -107,16 +191,20 @@
 
   /* ── الأفعال ── */
   const ACT = {
-    world: b => go(b.dataset.w === 'clients' ? 'clients' : 'today'),
     go: b => go(b.dataset.p),
-    theme: b => { K.theme.set(K.theme.dark() ? 'light' : 'dark'); b.innerHTML = ic(K.theme.dark() ? 'sun' : 'moon'); if (Object.keys(S.maps).length) route(); },
+    rail: () => { if (innerWidth <= 900) return moreSheet(); const a = $('#app'); a.classList.toggle('rail'); try { localStorage.setItem('tq-rail', a.classList.contains('rail') ? '1' : '0'); } catch (_) {} Object.values(S.maps).forEach(m => setTimeout(() => m.invalidateSize(), 300)); },
+    back: () => { if (history.length > 1) history.back(); else go('today'); },
+    more: () => moreSheet(),
+    quick: () => quick(),
+    bell: () => bell(),
+    theme: () => { K.theme.set(K.theme.dark() ? 'light' : 'dark'); $$('[data-act=theme]').forEach(x => { x.innerHTML = ic(K.theme.dark() ? 'sun' : 'moon', 18); }); if (Object.keys(S.maps).length) route(); },
     logout: async () => { if (await confirm('تسجيل خروج؟', '', 'خروج')) { await post('/api/auth/logout'); location.reload(); } },
     emp: b => empDay(b.dataset.id),
     client: b => clientDrawer(b.dataset.id),
     newTask: b => taskForm({ emp_id: b.dataset.emp || '', client_id: b.dataset.client || '' }),
     copy: b => { navigator.clipboard.writeText(b.dataset.text).then(() => toast('اتنسخ'), () => toast('انسخه يدوي', 'err')); },
     photo: b => modal('<img src="' + esc(b.dataset.src) + '" style="width:100%;border-radius:14px">'),
-    refresh: () => route()
+    refresh: () => { tickAt = 0; route(); }
   };
   document.addEventListener('click', e => { const a = e.target.closest('[data-act]'); if (a && ACT[a.dataset.act]) { e.preventDefault(); ACT[a.dataset.act](a, e); } });
 
@@ -132,7 +220,7 @@
     view().innerHTML =
       '<div class="ph"><div><h1>' + K.dayName(d.date) + '، ' + dm(d.date) + '</h1><div class="sub">' + B.length + ' موظف في الخدمة — آخر تحديث ' + hm(d.now) + '</div></div>' +
       '<div class="acts"><button class="btn" data-act="refresh">' + ic('refresh', 16) + 'تحديث</button><button class="btn primary" data-act="newTask">' + ic('plus', 16) + 'مهمة جديدة</button></div></div>' +
-      '<div class="tally"><div class="go"><b>' + cnt(['in', 'on_way', 'visit']) + '</b><span>في الشغل دلوقتي</span></div><div><b>' + cnt(['on_way', 'visit']) + '</b><span>' + ic('route', 14) + 'في الطريق أو عند عميل</span></div><div class="late"><b>' + late + '</b><span>اتأخروا النهارده</span></div><div class="stop"><b>' + cnt(['absent']) + '</b><span>مجوش</span></div><div class="hv" data-act="go" data-p="requests" style="cursor:pointer"><b>' + (d.counts.requests || 0) + '</b><span>' + ic('inbox', 14) + 'طلبات عملاء جديدة</span></div></div>' +
+      '<div class="tally"><div class="go"><span class="ic">' + ic('users', 18) + '</span><b data-count="' + cnt(['in', 'on_way', 'visit']) + '">' + cnt(['in', 'on_way', 'visit']) + '</b><span>في الشغل دلوقتي</span></div><div><span class="ic">' + ic('route', 18) + '</span><b data-count="' + cnt(['on_way', 'visit']) + '">' + cnt(['on_way', 'visit']) + '</b><span>في الطريق أو عند عميل</span></div><div class="late"><span class="ic">' + ic('clock', 18) + '</span><b data-count="' + late + '">' + late + '</b><span>اتأخروا النهارده</span></div><div class="stop"><span class="ic">' + ic('x', 18) + '</span><b data-count="' + cnt(['absent']) + '">' + cnt(['absent']) + '</b><span>مجوش</span></div><div class="hv rp" data-act="go" data-p="requests"><span class="ic">' + ic('inbox', 18) + '</span><b data-count="' + (d.counts.requests || 0) + '">' + (d.counts.requests || 0) + '</b><span>طلبات عملاء جديدة</span></div></div>' +
       '<div class="cols"><div class="stack">' + timeline(B, d) + '<div class="card" style="padding:0;overflow:hidden"><div class="blk-hd"><h3>فين الفريق دلوقتي</h3><button class="btn sm ghost" data-act="go" data-p="map">' + ic('map', 15) + 'الخريطة كاملة</button></div><div class="map" id="m-today" style="border:0;border-radius:0;height:340px"></div></div></div>' +
       '<div class="stack">' + reqList(d.requests) + followList(d.follow) + '</div></div>';
     liveMap('m-today', await get('/api/live'));
@@ -166,7 +254,7 @@
       return '<div class="tl-row" data-act="emp" data-id="' + b.emp.id + '"><div class="tl-who">' + av(b.emp) + '<div><b>' + esc(b.emp.name) + '</b><small><span class="dot ' + (['in', 'on_way', 'visit'].includes(b.state) ? 'live' : '') + ' state-' + b.state + '"></span>' + st[0] + (task ? ' ← ' + esc(task.client_name || task.title) : sub ? ' · ' + sub : '') + '</small></div></div><div class="tl-track">' + tr + '</div></div>';
     }).join('');
     const scale = '<div class="tl-scale"><div class="lbl">الساعة</div><div class="tl-track tl-hours" style="height:28px">' + hours.filter(h => (h - s0 / 60) % step === 0).map(h => '<span style="inset-inline-start:' + pct(h * 60) + '%">' + ((h % 12) || 12) + (h < 12 ? 'ص' : 'م') + '</span>').join('') + (nowM != null ? '<div class="tl-now" data-t="' + hm24(d.now) + '" style="inset-inline-start:' + pct(nowM) + '%;background:transparent"></div>' : '') + '</div></div>';
-    return '<div class="card day"><div class="day-hd"><h2>شريط اليوم</h2><div class="legend"><span><i style="background:var(--ink)"></i>حضور</span><span><i style="background:var(--hivis)"></i>زيارة عميل</span><span><i style="background:var(--late)"></i>تأخير</span><span><i style="border:1px dashed var(--line-2)"></i>الوردية</span></div></div><div class="tl">' + scale + rows + '</div></div>';
+    return '<div class="card day"><div class="day-hd"><h2>شريط اليوم</h2><div class="legend"><span><i style="background:var(--brand)"></i>حضور</span><span><i style="background:var(--hivis)"></i>زيارة عميل</span><span><i style="background:var(--late)"></i>تأخير</span><span><i style="border:1px dashed var(--line-2)"></i>الوردية</span></div></div><div class="tl">' + scale + rows + '</div></div>';
   }
   function reqList(list) {
     return '<div class="card list" style="padding-bottom:4px"><div class="blk-hd"><h3>طلبات العملاء</h3><button class="btn sm ghost" data-act="go" data-p="requests">الكل</button></div>' +
@@ -182,7 +270,7 @@
     const el = document.getElementById(id); if (!el || !window.L) return;
     const m = L.map(el, { zoomControl: true, attributionControl: true }); K.tiles(m); S.maps[id] = m; m._emps = {};
     const pts = [];
-    (L0.sites || []).forEach(s => { if (s.lat != null) { L.circle([s.lat, s.lng], { radius: s.radius, color: '#13213C', weight: 1, fillOpacity: .06, dashArray: '4 4' }).addTo(m).bindTooltip(esc(s.name)); pts.push([s.lat, s.lng]); } });
+    (L0.sites || []).forEach(s => { if (s.lat != null) { L.circle([s.lat, s.lng], { radius: s.radius, color: '#FF3B47', weight: 1, fillOpacity: .06, dashArray: '4 4' }).addTo(m).bindTooltip(esc(s.name)); pts.push([s.lat, s.lng]); } });
     (L0.clients || []).forEach(c => { L.marker([c.lat, c.lng], { icon: K.clientPin() }).addTo(m).bindTooltip(esc(c.name)).on('click', () => clientDrawer(c.id)); if (opts && opts.allClients) pts.push([c.lat, c.lng]); });
     const tasks = L0.tasks || [];
     (L0.emps || []).forEach(e => {
@@ -229,7 +317,7 @@
     const m = L.map(el); K.tiles(m); S.maps['m-emp'] = m;
     const pts = d.path.map(p => [p.lat, p.lng]);
     if (pts.length) {
-      L.polyline(pts, { color: '#13213C', weight: 4, opacity: .75 }).addTo(m);
+      L.polyline(pts, { color: '#FF3B47', weight: 4, opacity: .85 }).addTo(m);
       d.path.forEach(p => { if (p.kind !== 'ping') L.circleMarker([p.lat, p.lng], { radius: 6, color: '#fff', weight: 2, fillColor: p.kind === 'in' ? '#0F9D63' : p.kind === 'out' ? '#C8312F' : '#FFC21A', fillOpacity: 1 }).addTo(m).bindTooltip(hm(p.at) + ' · ' + ({ in: 'حضور', out: 'انصراف', visit: 'بداية زيارة', visit_end: 'نهاية زيارة', task: 'مهمة', arrive: 'وصل', task_done: 'خلّص مهمة' }[p.kind] || '')); });
       L.marker(pts[pts.length - 1], { icon: K.empPin(e, d.date === today() && d.att.some(x => !x.out_at)) }).addTo(m);
       m.fitBounds(pts, { padding: [30, 30], maxZoom: 16 });
@@ -564,7 +652,7 @@
         $$('#fu-n button', body).forEach(b => b.onclick = () => { $$('#fu-n button', body).forEach(x => x.classList.toggle('on', x === b)); $('[name=next_date]', body).value = b.dataset.d ? addDays(today(), +b.dataset.d) : ''; });
         $('#fu', body).onsubmit = ev => { ev.preventDefault(); busy(ev.submitter, async () => { await post('/api/followups', Object.assign(form($('#fu', body)), { client_id: c.id, kind })); toast('اتسجلت'); clientDrawer(c.id, 'follow'); refreshCounts(); if (['clients', 'follow'].includes(S.page)) R[S.page](true); }); };
       } else if (t === 'money') {
-        body.innerHTML = '<div class="card pad"><div class="row"><h4 class="grow">آخر 12 شهر</h4><div class="legend"><span><i style="background:var(--ink)"></i>فواتير</span><span><i style="background:var(--hivis)"></i>تحصيل</span></div></div><div class="bars">' + d.months.map(x => '<div class="b" title="' + K.monthName(x.month) + ': فواتير ' + money(x.invoiced) + ' · تحصيل ' + money(x.paid) + '"><div class="st"><i class="inv" style="height:' + (x.invoiced / maxV * 100) + '%"></i><i class="pay" style="height:' + (x.paid / maxV * 100) + '%"></i></div><small>' + K.MON[+x.month.slice(5) - 1].slice(0, 3) + '</small></div>').join('') + '</div></div>' +
+        body.innerHTML = '<div class="card pad"><div class="row"><h4 class="grow">آخر 12 شهر</h4><div class="legend"><span><i style="background:var(--brand)"></i>فواتير</span><span><i style="background:var(--hivis)"></i>تحصيل</span></div></div><div class="bars">' + d.months.map(x => '<div class="b" title="' + K.monthName(x.month) + ': فواتير ' + money(x.invoiced) + ' · تحصيل ' + money(x.paid) + '"><div class="st"><i class="inv" style="height:' + (x.invoiced / maxV * 100) + '%"></i><i class="pay" style="height:' + (x.paid / maxV * 100) + '%"></i></div><small>' + K.MON[+x.month.slice(5) - 1].slice(0, 3) + '</small></div>').join('') + '</div></div>' +
           '<div class="card pad"><form id="lg" class="row wrap"><div class="seg" id="lg-k"><button type="button" data-k="invoice" class="on">فاتورة</button><button type="button" data-k="payment">تحصيل</button></div><input class="input" type="number" min="0" step="0.01" name="amount" placeholder="المبلغ" style="max-width:140px" required inputmode="decimal"><input class="input" type="date" name="date" value="' + today() + '" style="max-width:170px"><input class="input grow" name="note" placeholder="البيان (اختياري)" style="min-width:140px"><button class="btn primary">إضافة</button></form></div>' +
           '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>التاريخ</th><th>النوع</th><th>البيان</th><th>المبلغ</th><th></th></tr></thead><tbody>' + (d.ledger.map(l => '<tr><td class="tnum">' + dmy(l.date) + '</td><td>' + (l.kind === 'invoice' ? chip('فاتورة') : chip('تحصيل', 'go')) + '</td><td class="muted">' + esc([l.ref, l.note].filter(Boolean).join(' — ')) + '</td><td class="tnum" style="font-weight:600">' + money(l.amount) + '</td><td><button class="btn sm ghost icon" data-act="lgdel" data-id="' + l.id + '" data-c="' + c.id + '" aria-label="مسح">' + ic('trash', 14) + '</button></td></tr>').join('') || '<tr><td colspan="5" class="muted" style="text-align:center;padding:20px">مفيش حركات لسه. الحساب ده هو اللي العميل بيشوفه على اللينك.</td></tr>') + '</tbody></table></div>';
         let kind = 'invoice';
@@ -680,7 +768,7 @@
   function siteForm(x) {
     const m = modal('<div class="modal-hd"><h3>' + (x.id ? 'تعديل المقر' : 'مقر جديد') + '</h3></div><form id="stf" style="display:grid;gap:12px"><div class="grid2"><label class="field"><span>الاسم</span><input class="input" name="name" value="' + esc(x.name || '') + '" required></label><label class="field"><span>النطاق (متر)</span><input class="input" type="number" name="radius" min="50" value="' + (x.radius || 250) + '"></label></div><div class="minimap" id="st-map"></div><input type="hidden" name="lat" value="' + (x.lat || '') + '"><input type="hidden" name="lng" value="' + (x.lng || '') + '"><button type="button" class="btn sm" id="st-here" style="justify-self:start">' + ic('pin', 15) + 'استخدم مكاني الحالي</button><div class="modal-ft">' + (x.id ? '<button type="button" class="btn danger" id="st-del" style="margin-inline-end:auto">مسح</button>' : '') + '<button type="button" class="btn" data-close>رجوع</button><button class="btn primary">حفظ</button></div></form>', { wide: true });
     const mm = L.map($('#st-map', m.el)); K.tiles(mm); let mk, ci;
-    const set = (lat, lng) => { $('[name=lat]', m.el).value = lat; $('[name=lng]', m.el).value = lng; const r = +$('[name=radius]', m.el).value || 250; if (mk) { mk.setLatLng([lat, lng]); ci.setLatLng([lat, lng]).setRadius(r); } else { mk = L.marker([lat, lng], { icon: K.clientPin() }).addTo(mm); ci = L.circle([lat, lng], { radius: r, color: '#13213C', weight: 1, fillOpacity: .08 }).addTo(mm); } };
+    const set = (lat, lng) => { $('[name=lat]', m.el).value = lat; $('[name=lng]', m.el).value = lng; const r = +$('[name=radius]', m.el).value || 250; if (mk) { mk.setLatLng([lat, lng]); ci.setLatLng([lat, lng]).setRadius(r); } else { mk = L.marker([lat, lng], { icon: K.clientPin() }).addTo(mm); ci = L.circle([lat, lng], { radius: r, color: '#FF3B47', weight: 1, fillOpacity: .08 }).addTo(mm); } };
     if (x.lat) { mm.setView([x.lat, x.lng], 16); set(x.lat, x.lng); } else mm.setView([30.05, 31.24], 8);
     mm.on('click', e => set(e.latlng.lat, e.latlng.lng)); setTimeout(() => mm.invalidateSize(), 150);
     $('[name=radius]', m.el).oninput = () => { if (ci) ci.setRadius(+$('[name=radius]', m.el).value || 250); };

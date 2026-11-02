@@ -26,46 +26,59 @@
   const nowWall = () => Date.now() + skew;   // Cairo wall time as if it were UTC
 
   function login() {
-    get('/s/api/brand').then(b => { const h = $('.login-top h1'); if (h && b.company) h.textContent = b.company; }).catch(() => {});
-    $('#root').innerHTML = '<div class="login"><div class="login-top"><h1>طاقم</h1><p>سجّل حضورك ومهامك من موبايلك.</p></div><form id="lf"><h2>دخول الموظف</h2>' +
-      '<label class="field"><span>اسم الدخول</span><input class="input" name="username" dir="ltr" autocomplete="username" autocapitalize="off" required></label>' +
-      '<label class="field"><span>الباسورد</span><input class="input" type="password" name="password" autocomplete="current-password" inputmode="numeric" required></label>' +
-      '<button class="btn primary bigbtn">دخول</button><p class="small muted">البيانات بتاخدها من الإدارة.</p></form></div>';
+    $('#root').innerHTML = '<div class="gate"><div class="aur a1"></div><div class="aur a2"></div><form class="gate-card" id="lf" autocomplete="on"><div class="gate-logo"><img src="/icons/icon.svg" alt="" id="lg-img"></div><h2 id="lg-name">طاقم</h2><p class="sub">دخول الموظف — سجّل حضورك ومهامك</p>' +
+      '<div class="gin">' + ic('user', 18) + '<input class="input" name="username" dir="ltr" placeholder="اسم المستخدم" autocomplete="username" autocapitalize="off" required style="text-align:right"></div>' +
+      '<div class="gin">' + ic('lock', 18) + '<input class="input" type="password" name="password" placeholder="كلمة المرور" autocomplete="current-password" inputmode="numeric" required><button type="button" class="eye" aria-label="إظهار الباسورد">' + ic('eye', 18) + '</button></div>' +
+      '<button class="btn primary bigbtn">تسجيل الدخول</button><div class="gchips"><span><i style="background:#34D399"></i>بالموقع</span><span><i style="background:#60A5FA"></i>بتوقيت السيرفر</span><span><i style="background:#C084FC"></i>آمن</span></div></form></div>';
+    get('/s/api/brand').then(b => { if (b.company) $('#lg-name').textContent = b.company; if (b.logo) $('#lg-img').src = b.logo; }).catch(() => {});
+    const eb = $('.eye'); eb.onclick = () => { const i = eb.previousElementSibling; i.type = i.type === 'password' ? 'text' : 'password'; eb.innerHTML = ic(i.type === 'password' ? 'eye' : 'eyeoff', 18); };
     $('#lf').onsubmit = e => { e.preventDefault(); busy(e.submitter, async () => { await post('/s/api/login', form($('#lf'))); location.reload(); }); };
   }
 
   function shell() {
-    $('#root').innerHTML = '<main class="wrap-app" id="view"></main><nav class="dock"><div class="dock-in">' +
+    $('#root').innerHTML = '<header class="mhead" id="mhead"></header><main class="wrap-app" id="view"></main><nav class="dock"><div class="dock-in">' +
       [['home', 'الرئيسية', 'home'], ['faults', 'الأعطال', 'tool'], ['month', 'شهري', 'cal'], ['chat', 'الإدارة', 'chat']].map(([k, t, i]) => '<button data-tab="' + k + '">' + ic(i, 22) + t + (k === 'chat' ? '<span class="badge" id="unr" hidden></span>' : '') + '</button>').join('') + '</div></nav>';
     $$('.dock button').forEach(b => b.onclick = () => { tab = b.dataset.tab; render(); window.scrollTo(0, 0); });
   }
+  let lastTab = null;
   function render() {
     $$('.dock button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
     const u = $('#unr'); if (u) { u.hidden = !H.unread; u.textContent = H.unread; }
     const chatBtn = $('.dock [data-tab=chat]'); if (chatBtn) chatBtn.hidden = !H.settings.chat_on;
+    head();
     ({ home, faults, month, chat })[tab]();
+    const v = $('#view'); if (lastTab !== tab) { v.classList.remove('enter'); void v.offsetWidth; v.classList.add('enter'); lastTab = tab; }
+  }
+  function head() {
+    const me = H.me, s = H.settings, open = H.open, hr = cairoParts(new Date()).h;
+    const t = H.tasks.find(x => x.status === 'on_way');
+    const status = t ? 'في الطريق لـ ' + (t.client_name || t.title) : H.visit ? 'عند ' + H.visit.client_name : open ? 'في الشغل من ' + hm(open.in_at) : H.rest ? 'النهارده أجازتك' : 'لسه مسجّلتش حضور';
+    $('#mhead').innerHTML = '<div class="mhead-row"><span class="logo"><img src="' + esc(s.logo || '/icons/icon.svg') + '" alt=""></span><div class="who"><small>' + (hr < 12 ? 'صباح الخير' : 'مساء الخير') + '</small><b>' + esc(me.name.split(' ')[0]) + '</b></div>' +
+      '<button class="ib" id="h-theme" aria-label="فاتح / غامق">' + ic(K.theme.dark() ? 'sun' : 'moon', 18) + '</button><button class="ib" id="h-me" aria-label="حسابي">' + av(me, 'sm') + '</button></div>' +
+      '<div class="strip"><span class="tag"><span class="dot ' + (open ? 'live' : '') + '"></span>' + (open ? 'شغّال' : 'مش في الشغل') + '</span><span class="txt">' + esc(status) + '</span></div>';
+    $('#h-theme').onclick = () => { K.theme.set(K.theme.dark() ? 'light' : 'dark'); render(); };
+    $('#h-me').onclick = meSheet;
+  }
+  function meSheet() {
+    const m = modal('<div class="modal-hd">' + av(H.me, 'lg') + '<div class="grow"><h3>' + esc(H.me.name) + '</h3><div class="muted small">' + esc(H.me.job || '') + '</div></div><button class="btn ghost icon" data-close aria-label="قفل">' + ic('x') + '</button></div>' +
+      '<div style="display:grid;gap:8px"><button class="btn bigbtn" id="me-photo">' + ic('camera', 18) + 'غيّر صورتي</button><button class="btn bigbtn" id="me-pw">' + ic('key', 18) + 'غيّر الباسورد</button>' + (!H.push && 'Notification' in window ? '<button class="btn bigbtn" id="me-push">' + ic('bell', 18) + 'شغّل الإشعارات</button>' : '') + '<button class="btn bigbtn danger" id="me-out">' + ic('out', 18) + 'تسجيل خروج</button></div>');
+    $('#me-photo', m.el).onclick = async () => { const p = await K.pickImage(320, .6); if (!p) return; await post('/s/api/photo', { photo: p }).catch(err); m.close(); await loadHome(); render(); toast('الصورة اتغيرت'); };
+    $('#me-pw', m.el).onclick = () => { m.close(); changePw(); };
+    const pu = $('#me-push', m.el); if (pu) pu.onclick = () => busy(pu, async () => { await K.push('/s/api'); H.push = true; m.close(); toast('الإشعارات اشتغلت ✓'); render(); });
+    $('#me-out', m.el).onclick = async () => { m.close(); if (await confirm('تسجيل خروج من التطبيق؟', H.open ? 'الحضور مش هيتقفل — سجّل انصراف الأول لو خلصت.' : '', 'خروج')) { await post('/s/api/logout'); location.reload(); } };
   }
 
   /* ════ الرئيسية ════ */
   function home() {
-    const me = H.me, s = H.settings, open = H.open;
-    const logo = '<img src="' + esc(s.logo || '/icons/icon.svg') + '" alt="">';
-    const hr = cairoParts(new Date()).h;
     $('#view').innerHTML =
-      '<div class="hello">' + av(me, '') + '<div><div class="small muted">' + (hr < 12 ? 'صباح الخير' : 'مساء الخير') + '</div><h2>' + esc(me.name.split(' ')[0]) + '</h2></div><span class="mark">' + logo + '</span></div>' +
       (!H.push && 'Notification' in window ? '<div class="banner">' + ic('bell', 18) + '<span class="grow">شغّل الإشعارات عشان المهام توصلك فورًا.</span><button class="btn sm primary" id="pushon">شغّل</button></div>' : '') +
-      clock() + visitBlock() + tasksBlock() +
-      '<div class="row" style="justify-content:center;gap:6px;margin-top:6px"><button class="btn sm ghost" id="me-photo">' + ic('camera', 15) + 'صورتي</button><button class="btn sm ghost" id="me-pw">' + ic('key', 15) + 'الباسورد</button><button class="btn sm ghost" id="me-theme">' + ic(K.theme.dark() ? 'sun' : 'moon', 15) + '</button><button class="btn sm ghost" id="me-out">' + ic('out', 15) + 'خروج</button></div>';
+      clock() + visitBlock() + tasksBlock();
     tick();
     $('#punch').onclick = punch;
     const po = $('#pushon'); if (po) po.onclick = () => busy(po, async () => { await K.push('/s/api'); H.push = true; toast('الإشعارات اشتغلت ✓'); render(); });
     const vb = $('#v-start'); if (vb) vb.onclick = visitStart;
     const ve = $('#v-end'); if (ve) ve.onclick = visitEnd;
     $$('[data-task]').forEach(b => b.onclick = () => taskAct(b.dataset.task, +b.dataset.id, b));
-    $('#me-out').onclick = async () => { if (await confirm('تسجيل خروج من التطبيق؟', open ? 'الحضور مش هيتقفل — سجّل انصراف الأول لو خلصت.' : '', 'خروج')) { await post('/s/api/logout'); location.reload(); } };
-    $('#me-theme').onclick = () => { K.theme.set(K.theme.dark() ? 'light' : 'dark'); render(); };
-    $('#me-pw').onclick = changePw;
-    $('#me-photo').onclick = async () => { const p = await K.pickImage(320, .6); if (!p) return; await post('/s/api/photo', { photo: p }).catch(err); await loadHome(); render(); toast('الصورة اتغيرت'); };
   }
   function clock() {
     const open = H.open, sh = H.shift;
@@ -78,7 +91,7 @@
     else label = 'ورديتك ' + hm('x ' + sh.start) + ' – ' + hm('x ' + sh.end);
     const C = 2 * Math.PI * 46;
     const late = open && open.late_min ? '<span class="chip late">متأخر ' + K.mins(open.late_min) + '</span>' : '';
-    return '<section class="clock ' + (open ? 'on' : '') + '"><div class="ring"><svg viewBox="0 0 100 100" aria-hidden="true"><circle class="trk" cx="50" cy="50" r="46" fill="none" stroke-width="6"/><circle class="shift" cx="50" cy="50" r="46" fill="none" stroke-width="1.2"/>' + (frac > 0.005 ? '<circle class="done" cx="50" cy="50" r="46" fill="none" stroke-width="6" stroke-linecap="round" stroke-dasharray="' + (frac * C).toFixed(1) + ' ' + C.toFixed(1) + '"/>' : '') + '</svg>' +
+    return '<section class="clock ' + (open ? 'on' : '') + '"><div class="ring"><svg viewBox="0 0 100 100" aria-hidden="true"><defs><linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF5A65"/><stop offset="1" stop-color="#C8161F"/></linearGradient></defs><circle class="trk" cx="50" cy="50" r="46" fill="none" stroke-width="6"/><circle class="shift" cx="50" cy="50" r="46" fill="none" stroke-width="1.2"/>' + (frac > 0.005 ? '<circle class="done" cx="50" cy="50" r="46" fill="none" stroke-width="6" stroke-linecap="round" stroke-dasharray="' + (frac * C).toFixed(1) + ' ' + C.toFixed(1) + '"/>' : '') + '</svg>' +
       '<div class="face"><div><span class="t" id="ck-t">--:--</span> <span class="ap" id="ck-ap"></span></div><div class="lbl muted" id="ck-l">' + esc(label) + '</div></div></div>' +
       '<div class="clock-meta">' + (open && open.in_site ? '<span class="chip">' + ic('pin', 13) + ' ' + esc(open.in_site) + (open.in_dist != null ? ' · ' + K.dist(open.in_dist) : '') + '</span>' : '') + late + '</div>' +
       '<button class="punch" id="punch">' + ic(open ? 'out' : 'play', 24) + (open ? 'سجّل انصراف' : 'سجّل حضور') + '</button>' +
@@ -271,7 +284,7 @@
     d.querySelector('button').onclick = () => { d.remove(); post('/s/api/reward/seen').catch(() => {}); H.rewards = []; };
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const c = d.querySelector('canvas'), x = c.getContext('2d'); c.width = innerWidth; c.height = innerHeight;
-    const cols = ['#FFC21A', '#13213C', '#0F9D63', '#2F6FEB', '#ffffff'];
+    const cols = ['#FF3B47', '#C8161F', '#FFC24D', '#ffffff', '#FF8A92'];
     const P = Array.from({ length: 140 }, () => ({ x: Math.random() * c.width, y: -20 - Math.random() * c.height * .5, v: 2 + Math.random() * 4, r: Math.random() * 6, w: 6 + Math.random() * 6, c: cols[(Math.random() * cols.length) | 0], s: Math.random() * .2 - .1 }));
     let f = 0; (function loop() { if (!d.isConnected || f++ > 360) return; x.clearRect(0, 0, c.width, c.height); P.forEach(p => { p.y += p.v; p.x += Math.sin((p.y + p.r * 40) / 40); p.r += p.s; x.save(); x.translate(p.x, p.y); x.rotate(p.r); x.fillStyle = p.c; x.fillRect(-p.w / 2, -3, p.w, 6); x.restore(); }); requestAnimationFrame(loop); })();
     if (navigator.vibrate) navigator.vibrate([100, 50, 100, 50, 200]);
