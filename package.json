@@ -1,0 +1,14 @@
+{
+  "name": "taqam",
+  "version": "1.0.0",
+  "description": "طاقم — الفريق الميداني ومتابعة العملاء",
+  "private": true,
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>حسابك</title>
+<meta name="theme-color" content="#13213C">
+<link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/base.css">
+<style>
+  body { padding-bottom: 40px; }
+  .pw { max-width: 620px; margin: 0 auto; padding: calc(16px + env(safe-area-inset-top)) 16px 20px; display: grid; gap: 14px; }
+  .p-top { display: flex; align-items: center; gap: 10px; }
+  .p-top .mark { width: 34px; height: 34px; border-radius: 10px; background: var(--ink); position: relative; overflow: hidden; display: grid; place-items: center; flex: none; }
+  .p-top .mark::after { content: ''; position: absolute; inset-inline: 0; bottom: 8px; height: 4px; background: var(--hivis); }
+  .p-top .mark b { font: 900 19px/1 var(--f-display); color: var(--paper); position: relative; z-index: 1; margin-top: -5px; }
+  .p-top .mark img { width: 100%; height: 100%; object-fit: cover; position: relative; z-index: 2; background: var(--card); }
+  .hero { background: var(--ink); color: var(--paper); border-radius: 26px; padding: 22px 20px; display: grid; gap: 14px; position: relative; overflow: hidden; }
+  .hero::after { content: ''; position: absolute; inset-inline: 0; top: 0; height: 6px; background: var(--hivis); }
+  .hero h1 { font-size: 30px; }
+  .hero .bal { display: grid; gap: 2px; }
+  .hero .bal span { font-size: 13px; opacity: .7; }
+  .hero .bal b { font: 900 44px/1 var(--f-display); font-variant-numeric: tabular-nums; }
+  .hero .mini { display: flex; gap: 18px; font-size: 13.5px; opacity: .85; flex-wrap: wrap; }
+  .hero .mini b { font-variant-numeric: tabular-nums; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .big { background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 18px 16px; display: grid; gap: 8px; text-align: start; cursor: pointer; font: inherit; color: inherit; box-shadow: var(--shadow); }
+  .big:hover { border-color: var(--ink-3); }
+  .big .i { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; }
+  .big b { font: 800 20px var(--f-display); }
+  .big small { color: var(--ink-2); font-size: 13px; }
+  .rq { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 14px 16px; display: grid; gap: 10px; }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+  .steps i { height: 6px; border-radius: 3px; background: var(--paper-2); }
+  .steps i.on { background: var(--ink); }
+  .steps i.go { background: var(--go); }
+  .steps i.no { background: var(--stop); }
+  .rate button { border: 0; background: none; font-size: 30px; cursor: pointer; color: var(--line-2); padding: 0 2px; line-height: 1; }
+  .rate button.on { color: var(--hivis); }
+  .qty { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .qty:last-child { border-bottom: 0; }
+  .step { display: inline-flex; align-items: center; border: 1px solid var(--line-2); border-radius: 12px; overflow: hidden; }
+  .step button { width: 42px; height: 42px; border: 0; background: var(--paper-2); font-size: 20px; font-weight: 700; cursor: pointer; }
+  .step input { width: 64px; height: 42px; border: 0; text-align: center; font: 700 17px var(--f-body); background: var(--card); color: var(--ink); }
+  .bars { display: flex; align-items: flex-end; gap: 5px; height: 110px; }
+  .bars .b { flex: 1; display: grid; grid-template-rows: 1fr auto; height: 100%; gap: 3px; }
+  .bars .st { display: flex; align-items: flex-end; gap: 2px; }
+  .bars .st i { flex: 1; border-radius: 3px 3px 0 0; min-height: 2px; }
+  .bars small { font-size: 10px; color: var(--ink-3); text-align: center; }
+  .led { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); align-items: center; font-size: 14.5px; }
+  .led:last-child { border-bottom: 0; }
+</style>
+</head>
+<body>
+<div id="root"><div class="pw"><div class="empty faint">بيحمّل…</div></div></div>
+<script src="/js/kit.js"></script>
+<script src="/js/portal.js"></script>
+</body>
+</html>
