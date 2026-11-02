@@ -283,7 +283,8 @@
       if (ss != null && se != null && b.state !== 'rest') tr += '<div class="tl-shift" style="inset-inline-start:' + pct(ss) + '%;width:' + (pct(se) - pct(ss)) + '%"></div>';
       b.att.forEach((a, i) => {
         const a0 = mm(a.in_at), a1 = a.out_at ? mm(a.out_at) : (nowM != null ? nowM : a0);
-        tr += '<div class="tl-bar ' + (a.out_at ? '' : 'open') + ' ' + (i === 0 && a.late_min ? 'late-in' : '') + '" style="inset-inline-start:' + pct(a0) + '%;width:' + Math.max(.6, pct(a1) - pct(a0)) + '%" title="' + esc(hm(a.in_at) + (a.out_at ? ' ← ' + hm(a.out_at) : ' — لسه في الشغل')) + '"></div>';
+        if (i === 0 && a.late_min && ss != null) { const g1 = Math.min(a0, se != null ? se : a0); if (g1 > ss) tr += '<div class="tl-late" style="inset-inline-start:' + pct(ss) + '%;width:' + (pct(g1) - pct(ss)) + '%" title="' + esc('اتأخر ' + K.mins(a.late_min)) + '"></div>'; }
+        tr += '<div class="tl-bar ' + (a.out_at ? '' : 'open') + '" style="inset-inline-start:' + pct(a0) + '%;width:' + Math.max(1.2, pct(a1) - pct(a0)) + '%" title="' + esc('حضر ' + hm(a.in_at) + (a.out_at ? ' — انصرف ' + hm(a.out_at) : ' — لسه في الشغل')) + '">' + (a.out_at ? '' : '<i class="tl-live"></i>') + '</div>';
       });
       b.visits.forEach(v => { const v0 = mm(v.start_at), v1 = v.end_at ? mm(v.end_at) : (nowM != null ? nowM : v0 + 10); tr += '<div class="tl-visit" style="inset-inline-start:' + pct(v0) + '%;width:' + Math.max(1, pct(v1) - pct(v0)) + '%" title="' + esc(v.client_name + ' — ' + (v.purpose || '')) + '"></div>'; });
       if (!b.att.length) tr += '<div class="tl-note">' + (b.state === 'rest' ? 'أجازة' : b.state === 'not_yet' ? 'ميعاده ' + hm('x ' + b.shift.start) : 'مسجّلش حضور') + '</div>';
@@ -293,7 +294,7 @@
       return '<div class="tl-row" data-act="emp" data-id="' + b.emp.id + '"><div class="tl-who">' + av(b.emp) + '<div><b>' + esc(b.emp.name) + '</b><small><span class="dot ' + (['in', 'on_way', 'visit'].includes(b.state) ? 'live' : '') + ' state-' + b.state + '"></span>' + st[0] + (task ? ' ← ' + esc(task.client_name || task.title) : sub ? ' · ' + sub : '') + '</small></div></div><div class="tl-track">' + tr + '</div></div>';
     }).join('');
     const scale = '<div class="tl-scale"><div class="lbl">الساعة</div><div class="tl-track tl-hours" style="height:28px">' + hours.filter(h => (h - s0 / 60) % step === 0).map(h => '<span style="inset-inline-start:' + pct(h * 60) + '%">' + ((h % 12) || 12) + (h < 12 ? 'ص' : 'م') + '</span>').join('') + (nowM != null ? '<div class="tl-now" data-t="' + hm24(d.now) + '" style="inset-inline-start:' + pct(nowM) + '%;background:transparent"></div>' : '') + '</div></div>';
-    return '<div class="card day"><div class="day-hd"><h2>شريط اليوم</h2><div class="legend"><span><i style="background:var(--brand)"></i>حضور</span><span><i style="background:var(--hivis)"></i>زيارة عميل</span><span><i style="background:var(--late)"></i>تأخير</span><span><i style="border:1px dashed var(--line-2)"></i>الوردية</span></div></div><div class="tl">' + scale + rows + '</div></div>';
+    return '<div class="card day"><div class="day-hd"><h2>شريط اليوم</h2><div class="legend"><span><i style="background:var(--brand)"></i>حضور</span><span><i style="background:var(--hivis)"></i>زيارة عميل</span><span><i class="lg-late"></i>تأخير</span><span><i style="border:1px dashed var(--line-2)"></i>الوردية</span></div></div><div class="tl">' + scale + rows + '</div></div>';
   }
   function reqList(list) {
     return '<div class="card list" style="padding-bottom:4px"><div class="blk-hd"><h3>طلبات العملاء</h3><button class="btn sm ghost" data-act="go" data-p="requests">الكل</button></div>' +
@@ -314,8 +315,8 @@
     const tasks = L0.tasks || [];
     (L0.emps || []).forEach(e => {
       const t = tasks.find(x => x.emp_id === e.id);
-      const mk = L.marker([e.last_lat, e.last_lng], { icon: K.empPin(e, !!t), zIndexOffset: 1000 }).addTo(m)
-        .bindTooltip('<b>' + esc(e.name) + '</b><br>' + K.ago(e.last_at, S.boot.now || L0.now) + (t ? '<br>في الطريق: ' + esc(t.client_name || t.title) + ' (' + K.dist(t.dist) + ')' : ''), { direction: 'top', offset: [0, -30] })
+      const mk = L.marker([e.last_lat, e.last_lng], { icon: K.empPin(e, !!t, K.ago(e.last_at, S.boot.now || L0.now)), zIndexOffset: 1000 }).addTo(m)
+        .bindTooltip('<b>' + esc(e.name) + '</b><br>' + K.ago(e.last_at, S.boot.now || L0.now) + (t ? '<br>في الطريق: ' + esc(t.client_name || t.title) + ' (' + K.dist(t.dist) + ')' : ''), { direction: 'top' })
         .on('click', () => empDay(e.id));
       m._emps[e.id] = mk; pts.push([e.last_lat, e.last_lng]);
     });

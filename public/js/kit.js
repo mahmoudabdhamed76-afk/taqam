@@ -210,7 +210,9 @@
     /* صور الخريطة من سيرفرنا (OpenStreetMap) — من غير أي مفتاح */
     return L.tileLayer('/tiles/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
   };
-  K.empPin = (emp, live) => L.divIcon({ className: '', iconSize: [36, 36], iconAnchor: [18, 36], html: '<div class="pin ' + (live ? 'live' : '') + '" style="--h:' + (emp.hue == null ? 0 : emp.hue) + '">' + (emp.photo ? '<img src="' + K.esc(emp.photo) + '">' : '<span>' + K.esc(K.initials(emp.name)) + '</span>') + '</div>' });
+  /* علامة الموظف على الخريطة: صورته (أو أول حروف اسمه) في دايرة + اسمه تحتها + سهم صغير بيشاور على مكانه بالظبط */
+  K.empPin = (emp, live, sub) => L.divIcon({ className: 'epin-wrap', iconSize: [120, 78], iconAnchor: [60, 78], tooltipAnchor: [0, -70],
+    html: '<div class="epin ' + (live ? 'live' : '') + '" style="--h:' + (emp.hue == null ? 0 : emp.hue) + '"><span class="epin-av">' + (emp.photo ? '<img src="' + K.esc(emp.photo) + '" alt="" onerror="this.remove()">' : '') + '<b>' + K.esc(K.initials(emp.name)) + '</b></span><span class="epin-nm">' + K.esc(String(emp.name || '').split(' ')[0]) + (sub ? ' · ' + K.esc(sub) : '') + '</span><i class="epin-tip"></i></div>' });
   K.clientPin = () => L.divIcon({ className: '', iconSize: [14, 14], iconAnchor: [7, 7], html: '<div class="cpin"></div>' });
 
   /* ── push ── */
