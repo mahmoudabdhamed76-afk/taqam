@@ -6,7 +6,7 @@
   const cur = () => (S.boot && S.boot.settings.currency) || 'ج.م';
   const NAV = [
     ['الفريق', [['today', 'لوحة اليوم', 'today'], ['map', 'الخريطة الحيّة', 'map'], ['team', 'الموظفين', 'users'], ['att', 'الحضور والانصراف', 'cal'], ['tasks', 'المهام', 'task'], ['pay', 'المرتبات', 'cash'], ['chat', 'المحادثات', 'chat'], ['faults', 'بنك الأعطال', 'tool']]],
-    ['متابعة العملاء', [['clients', 'العملاء والمراكز', 'store'], ['requests', 'طلبات العملاء', 'inbox'], ['follow', 'المتابعات', 'phone']]],
+    ['متابعة العملاء', [['clients', 'العملاء والمراكز', 'store'], ['cases', 'حالات المرضى (باركود)', 'qr'], ['requests', 'طلبات العملاء', 'inbox'], ['follow', 'المتابعات', 'phone']]],
     ['النظام', [['settings', 'الإعدادات', 'gear']]]
   ];
   const ALLP = NAV.flatMap(g => g[1]);
@@ -631,7 +631,7 @@
       (groups.length ? '<select class="input" id="cg" style="max-width:200px"><option value="">كل المناطق</option>' + groups.map(g => '<option ' + (g === f.g ? 'selected' : '') + '>' + esc(g) + '</option>').join('') + '</select>' : '') +
       '<div class="seg"><button data-act="clst" data-k="active" class="' + (f.st === 'active' ? 'on' : '') + '">شغالين</button><button data-act="clst" data-k="paused" class="' + (f.st === 'paused' ? 'on' : '') + '">متوقفين</button><button data-act="clst" data-k="all" class="' + (f.st === 'all' ? 'on' : '') + '">الكل</button></div></div>' +
       (list.length ? '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>العميل</th><th>المنطقة</th><th>الموبايل</th><th>المستحق</th><th>آخر تواصل</th><th>المتابعة الجاية</th><th>اللينك</th></tr></thead><tbody>' +
-        list.map(c => '<tr class="cl-row" data-act="client" data-id="' + c.id + '"><td>' + esc(c.name) + (c.open_req ? ' <span class="chip hivis">' + c.open_req + ' طلب</span>' : '') + '</td><td class="muted">' + esc(c.grp || '—') + '</td><td dir="ltr" style="text-align:end" class="tnum muted">' + esc(c.phone || '') + '</td><td class="tnum ' + (c.balance > 0 ? 'bal-pos' : c.balance < 0 ? 'bal-neg' : '') + '">' + (c.balance ? money(c.balance) : '—') + '</td><td class="muted small">' + (c.last_touch ? dm(c.last_touch) : '—') + '</td><td>' + (c.next_follow ? (c.next_follow < today() ? chip('متأخرة · ' + dm(c.next_follow), 'stop') : c.next_follow === today() ? chip('النهارده', 'hivis') : chip(dm(c.next_follow))) : '<span class="faint">—</span>') + '</td><td>' + (c.portal_on ? '<span class="chip go"><span class="dot"></span>' + (c.portal_seen ? 'فتحه ' + dm(c.portal_seen) : 'شغال') + '</span>' : chip('متوقف')) + '</td></tr>').join('') +
+        list.map(c => '<tr class="cl-row" data-act="client" data-id="' + c.id + '"><td>' + esc(c.name) + ' <button class="btn sm ghost icon" data-act="cases" data-id="' + c.id + '" title="حالات المرضى — رفع PDF وباركود للمريض" aria-label="حالات المرضى">' + ic('qr', 15) + '</button>' + (c.open_req ? ' <span class="chip hivis">' + c.open_req + ' طلب</span>' : '') + '</td><td class="muted">' + esc(c.grp || '—') + '</td><td dir="ltr" style="text-align:end" class="tnum muted">' + esc(c.phone || '') + '</td><td class="tnum ' + (c.balance > 0 ? 'bal-pos' : c.balance < 0 ? 'bal-neg' : '') + '">' + (c.balance ? money(c.balance) : '—') + '</td><td class="muted small">' + (c.last_touch ? dm(c.last_touch) : '—') + '</td><td>' + (c.next_follow ? (c.next_follow < today() ? chip('متأخرة · ' + dm(c.next_follow), 'stop') : c.next_follow === today() ? chip('النهارده', 'hivis') : chip(dm(c.next_follow))) : '<span class="faint">—</span>') + '</td><td>' + (c.portal_on ? '<span class="chip go"><span class="dot"></span>' + (c.portal_seen ? 'فتحه ' + dm(c.portal_seen) : 'شغال') + '</span>' : chip('متوقف')) + '</td></tr>').join('') +
         '</tbody></table></div>' : '<div class="card empty"><b>' + (C.length ? 'مفيش نتايج' : 'ضيف أول عميل') + '</b>' + (C.length ? 'غيّر البحث أو الفلتر.' : 'أو استورد قايمة العملاء مرة واحدة من Excel.') + '</div>');
     let t; $('#cq').oninput = ev => { clearTimeout(t); t = setTimeout(() => { f.q = ev.target.value; R.clients().then(() => { const i = $('#cq'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }); }, 300); };
     const g = $('#cg'); if (g) g.onchange = ev => { f.g = ev.target.value; R.clients(); };
@@ -886,7 +886,7 @@
         '<ul style="margin:10px 18px 14px;line-height:1.9;font-size:13.5px;color:var(--ink-2)"><li>الملف بيتشفّر على جهاز المركز، والأصل بيفضل عنده.</li><li>نسخة مشفّرة مؤقتة على السيرفر أول 7 أيام بس — بعدها المريض بيفتح من جهاز المركز لايف (لو صفحته مفتوحة).</li><li>الباسوورد مختلف عن لينك الحساب.</li></ul>' +
         '<label class="field"><span>الباسوورد (سيبه فاضي ونعملك واحد 6 أرقام)</span><input class="input" id="cs-pw" maxlength="40" placeholder="مثلاً 482913"></label>' +
         '<div class="modal-ft"><button class="btn" data-close>إلغاء</button><button class="btn primary" id="cs-go">' + ic('file', 16) + 'اعمل لينك الحالات</button></div>');
-      $('#cs-go', m.el).onclick = ev => busy(ev.currentTarget, async () => { const x = await capi('POST', '/make', { cid, name: c.name, wa: c.phone || '', pass: $('#cs-pw', m.el).value || '' }); m.close(); casesModal(cid, x.pass); });
+      $('#cs-go', m.el).onclick = ev => busy(ev.currentTarget, async () => { const x = await capi('POST', '/make', { cid, name: c.name, wa: c.phone || '', pass: $('#cs-pw', m.el).value || '' }); m.close(); casesModal(cid, x.pass); if (S.page === 'cases') R.cases(); });
       return;
     }
     if (!s.wa && c.phone) capi('POST', '/wa', { cid, wa: c.phone, ifEmpty: true }).catch(() => {});
@@ -896,17 +896,53 @@
       (fresh ? '<div class="secret" style="text-align:center;margin-bottom:12px"><span class="small muted">الباسوورد (اكتبه دلوقتي — مش هيظهر تاني)</span><code style="font-size:30px;letter-spacing:4px;text-align:center">' + esc(fresh) + '</code></div>' : '') +
       '<div class="linkbox">' + ic('link', 18) + '<code>' + esc(u) + '</code><button class="btn sm" data-act="copy" data-text="' + esc(u) + '">' + ic('copy', 14) + 'نسخ</button><a class="btn sm" target="_blank" rel="noopener" href="' + esc(u) + '">' + ic('ext', 14) + 'فتح</a></div>' +
       '<div class="kv" style="margin-top:12px"><div><span>الحالة</span><b style="font-size:17px;color:' + (s.online ? 'var(--go)' : 'var(--ink-2)') + '">' + (s.online ? '● متصل دلوقتي' : (s.last_seen ? 'آخر دخول ' + esc(String(s.last_seen).slice(0, 16)) : 'لسه مدخلش')) + '</b></div><div><span>حالات</span><b>' + s.cases + '</b></div><div><span>مرة اتفتحت</span><b>' + s.views + '</b></div></div>' +
+      (s.pub ? '<div class="fixqr"><div class="fixqr-q">' + qrSvg(fixedU, 150) + '</div><div class="grow"><b>' + ic('qr', 16) + ' الباركود الثابت للورق</b><p class="small muted">باركود واحد للمركز يتحط في هيدر سيرفر الطباعة فيتطبع على كل التقارير — المريض يمسحه ويكتب موبايله وأول اسمه ويوصل لحالته.</p><div class="row wrap" style="gap:6px;margin-top:8px"><button class="btn sm primary" id="fx-print">' + ic('print', 14) + 'اطبع</button><button class="btn sm" id="fx-png">' + ic('download', 14) + 'صورة</button><button class="btn sm" data-act="copy" data-text="' + esc(fixedU) + '">' + ic('copy', 14) + 'نسخ اللينك</button></div></div></div>' : '') +
       (s.pub ? '<p class="small muted" style="margin-top:12px">📌 الباركود الثابت للورق (المريض يكتب موبايله وأول اسمه): <a href="' + esc(fixedU) + '" target="_blank" rel="noopener" style="direction:ltr;unicode-bidi:isolate;color:var(--brand-2)">' + esc(fixedU) + '</a>' + (s.fixed ? '' : ' — <b>موقوف من المركز</b>') + '</p>' : '') +
       '<div class="row" style="margin-top:12px"><span class="small" style="white-space:nowrap;font-weight:700">💬 واتساب طلبات المرضى</span><input class="input" id="cs-wa-n" value="' + esc(s.wa || '') + '" placeholder="' + esc(c.phone || '01xxxxxxxxx') + '" style="direction:ltr;text-align:right"><button class="btn sm" id="cs-wa-s">حفظ</button></div>' +
       '<p class="small muted" style="margin-top:6px">المريض اللي مايلاقيش نتيجته بيبعت على الرقم ده' + (s.wa ? '' : ' (فاضي → بيتبعت على رقم المركز)') + '.' + (s.asks ? ' <b style="color:var(--go)">' + s.asks + ' طلب مفتوح</b>' : '') + '</p>' +
       (!s.active ? '<p class="small" style="color:var(--stop);font-weight:700;margin-top:6px">⏸ اللينك موقوف — المركز مش هيقدر يدخل والمرضى مش هيفتحوا.</p>' : '') +
       '<div class="modal-ft"><button class="btn ghost" id="cs-rt">' + ic('refresh', 15) + 'لينك جديد</button><button class="btn ghost" id="cs-st">' + (s.active ? '⏸ إيقاف' : '▶ تشغيل') + '</button><button class="btn" id="cs-pw2">' + ic('key', 15) + 'باسوورد جديد</button>' + (c.phone ? '<a class="btn go" target="_blank" rel="noopener" href="' + K.wa(c.phone, msg) + '">' + ic('wa', 15) + 'واتساب' + (fresh ? ' (اللينك + الباسوورد)' : '') + '</a>' : '') + '</div>', { wide: true });
+    const fp = $('#fx-print', m.el); if (fp) fp.onclick = () => fixedPrint(c, fixedU);
+    const fg = $('#fx-png', m.el); if (fg) fg.onclick = () => qrPngOf(fixedU, c.name, 'امسح الكود — نتيجة الأشعة بتاعتك', 'باركود-ثابت-' + c.name);
     $('#cs-wa-s', m.el).onclick = ev => busy(ev.currentTarget, async () => { await capi('POST', '/wa', { cid, wa: $('#cs-wa-n', m.el).value.trim() }); toast('اتحفظ رقم الواتساب'); });
     $('#cs-pw2', m.el).onclick = async () => { if (!await confirm('تعمل باسوورد جديد؟', 'المركز هيخرج ولازم يدخل بالجديد.', 'باسوورد جديد')) return; const x = await capi('POST', '/pass', { cid }).catch(err); if (x) { m.close(); casesModal(cid, x.pass); } };
     $('#cs-st', m.el).onclick = async () => { await capi('POST', '/stop', { cid, on: !s.active }).catch(err); toast(s.active ? 'لينك الحالات اتوقف' : 'لينك الحالات اشتغل'); m.close(); casesModal(cid); };
     $('#cs-rt', m.el).onclick = async () => { if (!await confirm('تعمل لينك جديد؟', 'اللينك القديم هيقف (الباركودات اللي اتطبعت للمرضى مش بتتأثر).', 'لينك جديد')) return; await capi('POST', '/rotate', { cid }).catch(err); toast('اتعمل لينك جديد — ابعته للمركز'); m.close(); casesModal(cid); };
   }
-  ACT.cases = b => casesModal(b.dataset.id).catch(err);
+  ACT.cases = (b, e) => { if (e) e.stopPropagation(); casesModal(b.dataset.id).then(() => { if (S.page === 'cases') {} }).catch(err); };
+  function fixedPrint(c, u) {
+    const w = window.open('', '_blank'); if (!w) return toast('المتصفح منع نافذة الطباعة — اسمح بالنوافذ المنبثقة', 'err');
+    w.document.open();
+    w.document.write('<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>الباركود الثابت</title><style>@page{size:A4;margin:10mm}body{margin:0;font-family:Tahoma,Arial,sans-serif;text-align:center;color:#0F172A}.b{display:inline-block;border:1.5px dashed #94A3B8;border-radius:5mm;padding:6mm;margin-top:10mm}.b h2{margin:0 0 2mm;font-size:18px}.b p{margin:2mm 0 0;font-size:13px}.u{font-family:monospace;direction:ltr;font-size:12px;margin-top:2mm}</style></head><body><div class="b"><h2>' + esc(c.name) + '</h2>' + qrSvg(u, 220) + '<p><b>📱 امسح الكود واكتب موبايلك وأول اسمك</b></p><p>نتيجة الأشعة بتاعتك هتظهر على موبايلك</p><div class="u">' + esc(u.replace(/^https?:\/\//, '')) + '</div></div><script>window.onload=function(){setTimeout(function(){window.print()},250)}<\/script></body></html>');
+    w.document.close();
+  }
+  function qrPngOf(u, title, line, file) {
+    const q = qrcode(0, 'M'); q.addData(u); q.make();
+    const n = q.getModuleCount(), cell = 12, pad = 40, qs = n * cell, W = qs + pad * 2, H = qs + pad * 2 + 120;
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const g = cv.getContext('2d');
+    g.fillStyle = '#fff'; g.fillRect(0, 0, W, H); g.fillStyle = '#0F172A'; g.textAlign = 'center';
+    g.font = 'bold 30px Tahoma, Arial'; g.direction = 'rtl'; g.fillText(String(title).slice(0, 40), W / 2, 56);
+    for (let r = 0; r < n; r++) for (let k = 0; k < n; k++) if (q.isDark(r, k)) g.fillRect(pad + k * cell, 80 + r * cell, cell, cell);
+    g.font = '22px monospace'; g.direction = 'ltr'; g.fillText(u.replace(/^https?:\/\//, ''), W / 2, 80 + qs + 40);
+    g.font = 'bold 20px Tahoma, Arial'; g.direction = 'rtl'; g.fillText(line, W / 2, 80 + qs + 76);
+    const a = document.createElement('a'); a.href = cv.toDataURL('image/png'); a.download = String(file).replace(/[\\/:*?"<>|]/g, '') + '.png'; document.body.appendChild(a); a.click(); a.remove();
+  }
+
+  /* ── صفحة حالات المرضى: كل المراكز ولينكاتها ── */
+  R.cases = async function () {
+    const [cl, cs] = await Promise.all([clientsList(), capi('GET', '')]);
+    const sites = cs.sites || {}, list = cl.filter(c => c.status === 'active');
+    const on = list.filter(c => sites[c.id]), off = list.filter(c => !sites[c.id]);
+    view().innerHTML = '<div class="ph"><div><h1>حالات المرضى</h1><div class="sub">لكل مركز لينك بباسوورد يفتحه من كمبيوتره: يرفع PDF الحالة (أو DICOM ويحوّله) ويطلعله باركود للمريض — المريض يمسحه ويشوف أشعته على موبايله. وفيه باركود ثابت يتطبع على كل التقارير.</div></div></div>' +
+      '<div class="tally" style="grid-template-columns:repeat(3,minmax(0,1fr))"><div class="go"><span class="ic">' + ic('qr', 18) + '</span><b data-count="' + on.length + '">' + on.length + '</b><span>مراكز ليها لينك حالات</span></div><div><span class="ic">' + ic('users', 18) + '</span><b data-count="' + on.filter(c => sites[c.id].online).length + '">' + on.filter(c => sites[c.id].online).length + '</b><span>متصلين دلوقتي</span></div><div><span class="ic">' + ic('store', 18) + '</span><b data-count="' + off.length + '">' + off.length + '</b><span>لسه من غير لينك</span></div></div>' +
+      (list.length ? '<div class="cases-grid">' + on.concat(off).map(c => { const st = sites[c.id];
+        return '<div class="card case-card ' + (st ? '' : 'off') + '" data-act="cases" data-id="' + c.id + '"><div class="row"><span class="cc-ic">' + ic(st ? 'qr' : 'file', 22) + '</span><div class="grow" style="min-width:0"><b>' + esc(c.name) + '</b><div class="xs muted">' + esc(c.grp || '') + '</div></div>' +
+          (st ? (st.active ? (st.online ? '<span class="chip go"><span class="dot live"></span>متصل</span>' : '<span class="chip">شغال</span>') : '<span class="chip stop">موقوف</span>') : '<span class="chip">مفيش لينك</span>') + '</div>' +
+          '<button class="btn sm ' + (st ? '' : 'primary') + '" data-act="cases" data-id="' + c.id + '" style="width:100%;margin-top:12px">' + (st ? ic('gear', 14) + 'الإدارة والباركود الثابت' : ic('plus', 14) + 'اعمل لينك الحالات') + '</button></div>'; }).join('') + '</div>'
+        : '<div class="card empty"><b>ضيف عملاء الأول</b>من «العملاء والمراكز».</div>');
+  };
+  /* casesModal يعيد تحميل الصفحة لما يتقفل */
+
 
   start();
 })();

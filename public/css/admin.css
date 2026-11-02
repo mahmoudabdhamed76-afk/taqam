@@ -388,3 +388,15 @@ body { min-height: 100vh; }
 @keyframes ringOut { from { transform: scale(.6); opacity: 1; } to { transform: scale(2.2); opacity: 0; } }
 .trk.done { opacity: .85; }
 @media (max-width: 600px) { .trk-lbl { font-size: 10.5px; } .trk-line { margin: 0 14px 4px; } }
+
+/* ════ حالات المرضى ════ */
+.cases-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 12px; }
+.case-card { padding: 16px; cursor: pointer; transition: transform .2s, border-color .2s; }
+.case-card:hover { transform: translateY(-3px); border-color: var(--edge); }
+.case-card b { font-weight: 700; font-size: 15.5px; }
+.cc-ic { width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; background: var(--brand-grad); color: #fff; flex: none; box-shadow: var(--brand-glow); }
+.case-card.off .cc-ic { background: var(--paper-2); color: var(--ink-3); box-shadow: none; }
+.fixqr { display: flex; gap: 14px; align-items: center; margin-top: 14px; padding: 14px; border-radius: 18px; background: var(--card-2); border: 1px solid var(--edge); }
+.fixqr-q { background: #fff; padding: 6px; border-radius: 12px; flex: none; }
+.fixqr-q svg { display: block; width: 120px; height: 120px; }
+@media (max-width: 520px) { .fixqr { flex-direction: column; text-align: center; } .fixqr .row { justify-content: center; } }
