@@ -195,6 +195,7 @@ module.exports = function (R) {
     db.prepare('UPDATE employees SET photo = ? WHERE id = ?').run(c.body.photo, c.emp.id);
     return { ok: true };
   });
+  R('POST', '/s/api/push/seen', c => { webpush.seen('e:' + c.emp.id); return { ok: true }; });
   R('GET', '/s/api/push/key', () => ({ key: webpush.publicKey() }));
   R('POST', '/s/api/push/subscribe', c => { webpush.subscribe({ id: 'e:' + c.emp.id }, c.body.sub, c.req.headers['user-agent']); return { ok: true }; });
 

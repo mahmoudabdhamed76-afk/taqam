@@ -374,6 +374,8 @@ module.exports = function (R) {
   /* ── الإشعارات للمدير ── */
   R('GET', '/api/push/key', () => ({ key: webpush.publicKey() }));
   R('POST', '/api/push/subscribe', c => { webpush.subscribe({ id: 'u:' + c.user.id }, c.body.sub, c.req.headers['user-agent']); return { ok: true }; });
+  R('POST', '/api/push/seen', c => { webpush.seen('u:' + c.user.id); return { ok: true }; });
+  R('GET', '/api/push/status', c => ({ devices: webpush.countFor('u:' + c.user.id) }));
   R('POST', '/api/push/test', c => webpush.send(['u:' + c.user.id], { title: 'طاقم', body: 'الإشعارات شغالة على الجهاز ده ✓', url: '/', noBadge: true }).then(r => ({ ok: true, devices: r.devices, sent: r.ok })));
 
   function searchFaults(q) {

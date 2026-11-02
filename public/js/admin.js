@@ -33,7 +33,9 @@
     window.addEventListener('hashchange', route);
     route();
     live();
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').then(() => { K.pushAuto('/api'); K.seen('/api'); }).catch(() => {});
+    setTimeout(() => K.pushPrompt('/api', 'يوصلك حضور وانصراف الموظفين وطلبات العملاء والرسايل — برقم على الأيقونة وحتى والبرنامج مقفول.'), 2500);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) { K.seen('/api'); refreshCounts(); ticker(true); } });
   }
   const logoSrc = st => esc((st && st.logo) || '/icons/icon.svg');
   function gate(setup, st) {
@@ -175,8 +177,8 @@
       const soft = (pages) => { if (!pages || pages.includes(S.page)) { clearTimeout(softT); softT = setTimeout(() => { if (Date.now() - lastSoft > 1500 && !$('.scrim') && !$('.drawer')) { lastSoft = Date.now(); R[S.page](true).catch(() => {}); } }, 600); } refreshCounts(); };
       es.addEventListener('request', () => { toast('طلب جديد من عميل', 'hivis'); soft(['today', 'requests', 'clients']); });
       es.addEventListener('chat', ev => { const d = JSON.parse(ev.data || '{}'); if (S.page === 'chat') R.chat(true, d.emp); else { const e = empById(d.emp); toast('رسالة من ' + (e ? e.name : 'موظف')); refreshCounts(); } });
-      es.addEventListener('att', () => soft(['today', 'att', 'map']));
-      es.addEventListener('task', () => soft(['today', 'tasks', 'map']));
+      es.addEventListener('att', ev => { const d = JSON.parse(ev.data || '{}'), e = empById(d.emp); if (e) toast(e.name + (d.kind === 'out' ? ' سجّل انصراف' : ' سجّل حضور'), d.kind === 'out' ? '' : 'hivis'); soft(['today', 'att', 'map']); ticker(true); });
+      es.addEventListener('task', ev => { const d = JSON.parse(ev.data || '{}'); if (d.arrived) toast('موظف وصل للعميل ✓', 'hivis'); else if (d.done) toast('مهمة خلصت ✓'); soft(['today', 'tasks', 'map']); ticker(true); });
       es.addEventListener('visit', () => soft(['today', 'map']));
       es.addEventListener('client', () => soft(['clients', 'follow']));
       es.addEventListener('loc', ev => { const d = JSON.parse(ev.data || '{}'); moveEmp(d); });

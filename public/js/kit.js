@@ -226,6 +226,23 @@
     return true;
   };
 
+  /* إشعارات تلقائية: لو الإذن متاخد قبل كده → نجدد الاشتراك بهدوء؛ ونصفّر رقم الأيقونة لما البرنامج يتفتح */
+  K.pushState = () => !('Notification' in W) || !('serviceWorker' in navigator) || !('PushManager' in W) ? 'unsupported' : Notification.permission;
+  K.pushAuto = async function (base) { if (K.pushState() === 'granted') { try { await K.push(base); return true; } catch (_) {} } return false; };
+  K.seen = function (base) { try { if (navigator.clearAppBadge) navigator.clearAppBadge().catch(() => {}); } catch (_) {} K.post(base + '/push/seen').catch(() => {}); try { navigator.serviceWorker && navigator.serviceWorker.getRegistration().then(r => r && r.getNotifications().then(ns => ns.forEach(n => n.close()))); } catch (_) {} };
+  K.isIOS = () => /iP(hone|ad|od)/.test(navigator.userAgent) && !W.navigator.standalone;
+  K.pushPrompt = function (base, text) {
+    const st = K.pushState(); if (st === 'granted' || st === 'denied' && !text) return;
+    if (document.getElementById('push-ask')) return;
+    try { if (sessionStorage.getItem('tq-push-later')) return; } catch (_) {}
+    const d = document.createElement('div'); d.id = 'push-ask'; d.className = 'push-ask';
+    d.innerHTML = '<span class="pa-ic ring-bell">' + K.ic('bell', 22) + '</span><div class="grow"><b>شغّل الإشعارات</b><small>' + (st === 'unsupported' ? (K.isIOS() ? 'على الآيفون: دوس «مشاركة» ← «إضافة إلى الشاشة الرئيسية» وافتح البرنامج من الأيقونة، وبعدين شغّلها.' : 'المتصفح ده مش بيدعم الإشعارات — جرّب كروم.') : st === 'denied' ? 'الإشعارات مقفولة من إعدادات المتصفح — افتحها للموقع ده.' : K.esc(text)) + '</small></div>' +
+      (st === 'default' ? '<button class="btn primary sm" data-pa="on">شغّل</button>' : '') + '<button class="btn ghost sm icon" data-pa="x" aria-label="بعدين">' + K.ic('x', 16) + '</button>';
+    document.body.appendChild(d);
+    d.querySelector('[data-pa=x]').onclick = () => { d.remove(); try { sessionStorage.setItem('tq-push-later', '1'); } catch (_) {} };
+    const on = d.querySelector('[data-pa=on]'); if (on) on.onclick = () => K.busy(on, async () => { await K.push(base); d.remove(); K.toast('الإشعارات اشتغلت ✓ هيوصلك كل جديد حتى والبرنامج مقفول'); });
+  };
+
   /* ── icons (خط رفيع 1.8) ── */
   const P = {
     qr: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 17h3v3h-3z"/>',

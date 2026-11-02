@@ -9,12 +9,13 @@
   const tsMs = ts => Date.parse(String(ts).replace(' ', 'T') + 'Z');
 
   async function start() {
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/app-sw.js', { scope: '/app' }).catch(() => {});
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/app-sw.js', { scope: '/app' }).then(() => { K.pushAuto('/s/api').then(ok => { if (ok && H && !H.push) { H.push = true; if (tab === 'home') render(); } }); K.seen('/s/api'); }).catch(() => {});
     try { await loadHome(); } catch (e) { if (e.status === 401) return login(); $('#root').innerHTML = '<div class="wrap-app"><div class="empty"><b>مفيش اتصال</b>اتأكد من النت وجرّب تاني.<br><br><button class="btn primary" onclick="location.reload()">جرّب تاني</button></div></div>'; return; }
     shell(); render();
     tickT = setInterval(tick, 15000);
     homeT = setInterval(() => { if (!document.hidden) loadHome().then(render).catch(() => {}); }, 60000);
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) { loadHome().then(render).catch(() => {}); maybePing(); } });
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) { K.seen('/s/api'); loadHome().then(render).catch(() => {}); maybePing(); } });
+    setTimeout(() => { if (!H.push) K.pushPrompt('/s/api', 'توصلك المهام الجديدة ورسايل الإدارة والمكافآت — برقم على الأيقونة وحتى والتطبيق مقفول.'); }, 2000);
     setInterval(maybePing, 60000); maybePing();
   }
   async function loadHome() {
