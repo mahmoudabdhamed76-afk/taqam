@@ -23,7 +23,7 @@
     var pxi = -1, i;
     for (i = 0; i < bytes.length - 4; i++) if (bytes[i] === 0xE0 && bytes[i + 1] === 0x7F && bytes[i + 2] === 0x10 && bytes[i + 3] === 0x00) { pxi = i; break; }
     if (pxi < 0) return null;
-    var tags = {}, pos = 0;
+    var tags = {}, pos = 0; if (bytes.length > 132 && bytes[128] === 0x44 && bytes[129] === 0x49 && bytes[130] === 0x43 && bytes[131] === 0x4D) pos = 132;
     while (pos < pxi) {
       try {
         var g = dv.getUint16(pos, true), e = dv.getUint16(pos + 2, true), vr = String.fromCharCode(bytes[pos + 4], bytes[pos + 5]);
@@ -35,6 +35,16 @@
         var key = (g << 16) | e; if (!tags[key]) tags[key] = [vs, len];
         pos = vs + len; if (len % 2) pos++;
       } catch (er) { pos++; }
+    }
+    /* طاقم · ملفات Implicit VR (أجهزة كتير بتبعت كده): نقرا الوسوم من غير VR */
+    var tsT = tags[(0x0002 << 16) | 0x0010], TS = tsT ? new TextDecoder('latin1').decode(bytes.slice(tsT[0], tsT[0] + tsT[1])).replace(/[\0 ]/g, '') : '';
+    if ((TS === '1.2.840.10008.1.2' || !tags[(0x0028 << 16) | 0x0010]) && bytes.length > 140 && bytes[128] === 0x44 && bytes[129] === 0x49) {
+      var mg = dv.getUint32(140, true), ip = 144 + mg; tags = {};
+      while (ip + 8 <= pxi) {
+        var ig = dv.getUint16(ip, true), ie = dv.getUint16(ip + 2, true), il = dv.getUint32(ip + 4, true);
+        if (il === 0xFFFFFFFF) { var dep = 1, q = ip + 8; while (q + 8 <= pxi && dep > 0) { var qg = dv.getUint16(q, true), qe = dv.getUint16(q + 2, true), ql = dv.getUint32(q + 4, true); if (qg === 0xFFFE && qe === 0xE0DD) { dep--; q += 8; } else if (qg === 0xFFFE && (qe === 0xE000 || qe === 0xE00D)) { q += 8; if (qe === 0xE000 && ql !== 0xFFFFFFFF) q += ql; } else { if (ql === 0xFFFFFFFF) { dep++; q += 8; } else q += 8 + ql; } } ip = q; continue; }
+        var ik = (ig << 16) | ie; if (!tags[ik]) tags[ik] = [ip + 8, il]; ip += 8 + il;
+      }
     }
     function gus(g, e) { var t = tags[(g << 16) | e]; return (t && t[1] >= 2) ? dv.getUint16(t[0], true) : 0; }
     function raw(g, e) { var t = tags[(g << 16) | e]; return t ? bytes.slice(t[0], t[0] + t[1]) : null; }
@@ -53,7 +63,24 @@
     };
     var pxVR = String.fromCharCode(bytes[pxi + 4], bytes[pxi + 5]), pxStart, pxLen;
     if (LONG[pxVR]) { pxLen = dv.getUint32(pxi + 8, true); pxStart = pxi + 12; } else { pxLen = dv.getUint32(pxi + 4, true); pxStart = pxi + 8; }
-    if (pxLen === 0xFFFFFFFF) throw new Error('الصورة مضغوطة (JPEG) — صدّرها من الجهاز من غير ضغط');
+    if (pxLen === 0xFFFFFFFF) {
+      /* JPEG Baseline (8 بت) — المتصفح بيفكّه لوحده: ناخد أول فريم زي ما هو */
+      if (/^1\.2\.840\.10008\.1\.2\.4\.(50|51)$/.test(TS) || TS === '') {
+        var q2 = pxStart, frs = [], got = 0;
+        while (q2 + 8 <= bytes.length) {
+          var fg = dv.getUint16(q2, true), fe = dv.getUint16(q2 + 2, true), fl = dv.getUint32(q2 + 4, true);
+          if (fg !== 0xFFFE || fe !== 0xE000) break;
+          if (got++ > 0 && fl) { var fr = bytes.subarray(q2 + 8, q2 + 8 + fl); frs.push(fr); if (fr[fl - 2] === 0xFF && fr[fl - 1] === 0xD9) break; }
+          q2 += 8 + fl;
+        }
+        if (frs.length && frs[0][0] === 0xFF && frs[0][1] === 0xD8) {
+          var tot = 0; frs.forEach(function (x) { tot += x.length; }); var jb = new Uint8Array(tot), o2 = 0; frs.forEach(function (x) { jb.set(x, o2); o2 += x.length; });
+          var b64 = '', CH = 0x8000; for (var z = 0; z < jb.length; z += CH) b64 += String.fromCharCode.apply(null, jb.subarray(z, z + CH));
+          return { img: 'data:image/jpeg;base64,' + btoa(b64), meta: meta };
+        }
+      }
+      throw new Error('الصورة مضغوطة بنوع مش مدعوم — صدّرها من الجهاز من غير ضغط');
+    }
     var numPx = rows * cols, cv = document.createElement('canvas'); cv.width = cols; cv.height = rows;
     var ctx = cv.getContext('2d'), id = ctx.createImageData(cols, rows), px = id.data, inv = cfg.inv !== (photo === 'MONOCHROME1');
     if (bits === 16) {
@@ -275,5 +302,5 @@
     }
     shell();
   }
-  window.OZDicom = { mount: mount, decode: decodeDicom };
+  window.OZDicom = { mount: mount, decode: decodeDicom, buildPdf: buildPdf, jspdf: jspdf, MOD: MOD };
 })();

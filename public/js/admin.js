@@ -7,11 +7,22 @@
   const NAV = [
     ['الفريق', [['today', 'لوحة اليوم', 'today'], ['map', 'الخريطة الحيّة', 'map'], ['team', 'الموظفين', 'users'], ['att', 'الحضور والانصراف', 'cal'], ['tasks', 'المهام', 'task'], ['pay', 'المرتبات', 'cash'], ['chat', 'المحادثات', 'chat'], ['faults', 'بنك الأعطال', 'tool']]],
     ['متابعة العملاء', [['clients', 'العملاء والمراكز', 'store'], ['cases', 'حالات المرضى (باركود)', 'qr'], ['requests', 'طلبات العملاء', 'inbox'], ['follow', 'المتابعات', 'phone']]],
+    ['الأشعة', [['pacs', 'الباكس (DICOM)', 'scan']]],
     ['النظام', [['settings', 'الإعدادات', 'gear']]]
   ];
+  /* الصلاحيات: كل صفحة تبع أنهي قسم */
+  const PAGE_PERM = { today: 'team', map: 'team', team: 'team', att: 'team', tasks: 'team', chat: 'team', faults: 'team', pay: 'pay', clients: 'clients', requests: 'clients', follow: 'clients', cases: 'cases', pacs: 'pacs' };
+  const has = k => !!(S.me && (S.me.perms || []).includes(k));
+  const can = p => !PAGE_PERM[p] || has(PAGE_PERM[p]);
+  const firstPage = () => (NAV.flatMap(g => g[1]).find(x => can(x[0])) || ['settings'])[0];
+  function applyPerms() {
+    for (let i = NAV.length - 1; i >= 0; i--) { NAV[i][1] = NAV[i][1].filter(x => can(x[0])); if (!NAV[i][1].length) NAV.splice(i, 1); }
+    ALLP.length = 0; NAV.flatMap(g => g[1]).forEach(x => ALLP.push(x));
+    BNAV = [['today', 'الرئيسية', 'home'], ['tasks', 'المهام', 'task'], ['pacs', 'الباكس', 'scan'], ['team', 'الفريق', 'users'], ['clients', 'العملاء', 'store'], ['cases', 'الحالات', 'qr'], ['requests', 'الطلبات', 'inbox'], ['settings', 'الإعدادات', 'gear']].filter(x => can(x[0])).slice(0, 4);
+  }
   const ALLP = NAV.flatMap(g => g[1]);
   const titleOf = p => (ALLP.find(x => x[0] === p) || ['', 'طاقم'])[1];
-  const BNAV = [['today', 'الرئيسية', 'home'], ['tasks', 'المهام', 'task'], ['team', 'الفريق', 'users'], ['clients', 'العملاء', 'store']];
+  let BNAV = [['today', 'الرئيسية', 'home'], ['tasks', 'المهام', 'task'], ['team', 'الفريق', 'users'], ['clients', 'العملاء', 'store']];
   const STATE = { in: ['في الشغل', 'go'], on_way: ['في الطريق لمهمة', 'hivis'], visit: ['في زيارة', 'hivis'], out: ['انصرف', ''], absent: ['مجاش', 'stop'], rest: ['أجازة', ''], not_yet: ['لسه ميعاده مجاش', ''] };
   const TASK = { new: ['جديدة', 'sky'], accepted: ['اتقبلت', 'brand'], on_way: ['في الطريق', 'hivis'], arrived: ['وصل', 'go'], done: ['خلصت', ''], cancelled: ['اتلغت', 'stop'] };
   const REQ = { new: ['جديد', 'hivis'], ok: ['اتأكد', 'sky'], sent: ['خلص', 'go'], no: ['اتلغى', 'stop'] };
@@ -27,7 +38,8 @@
   async function start() {
     let st; try { st = await get('/api/auth/state'); } catch (e) { st = { setup: false }; }
     if (st.setup) return gate(true, st);
-    try { S.me = (await get('/api/me')).user; } catch (e) { return gate(false, st); }
+    try { const me = await get('/api/me'); S.me = me.user; S.allPerms = me.all_perms || {}; } catch (e) { return gate(false, st); }
+    applyPerms();
     await loadBoot();
     shell();
     window.addEventListener('hashchange', route);
@@ -68,15 +80,15 @@
   async function loadBoot() { S.boot = await get('/api/boot'); S.counts = S.boot.counts; }
 
   /* ════════ الهيكل: قايمة جانبية + شريط علوي (زي EmdadX) ════════ */
-  const badgeOf = k => ({ requests: S.counts.requests, follow: S.counts.follow, chat: S.counts.chat, tasks: S.counts.tasks })[k] || 0;
+  const badgeOf = k => can(k) ? ({ requests: S.counts.requests, follow: S.counts.follow, chat: S.counts.chat, tasks: S.counts.tasks, pacs: S.counts.pacs })[k] || 0 : 0;
   function shell() {
     const s = S.boot.settings;
     let rail = false; try { rail = localStorage.getItem('tq-rail') === '1'; } catch (_) {}
     const liveBox = '<div class="livebox" id="live"><div class="live-tag"><span class="dot live"></span>مباشر</div><div class="live-win"><div class="live-track" id="live-track"><span>بيحمّل…</span></div></div></div>';
     $('#root').innerHTML = '<div class="app ' + (rail ? 'rail' : '') + '" id="app">' +
-      '<aside class="side"><a class="brand" href="#/today"><span class="logo"><img src="' + logoSrc(s) + '" alt=""></span><span class="brand-t"><b>' + esc(s.company) + '</b><span>نظام الإدارة</span></span><button class="rail-btn" data-act="rail" title="تصغير القايمة" aria-label="تصغير القايمة">' + ic('panel', 16) + '</button></a>' +
+      '<aside class="side"><a class="brand" href="#/' + firstPage() + '"><span class="logo"><img src="' + logoSrc(s) + '" alt=""></span><span class="brand-t"><b>' + esc(s.company) + '</b><span>نظام الإدارة</span></span><button class="rail-btn" data-act="rail" title="تصغير القايمة" aria-label="تصغير القايمة">' + ic('panel', 16) + '</button></a>' +
       '<nav class="nav" id="nav"></nav><div class="side-foot"><button class="out-btn" data-act="logout">' + ic('out', 18) + '<span>تسجيل خروج</span></button></div></aside>' +
-      '<div class="main"><header class="top"><button class="ib" data-act="rail" aria-label="القايمة">' + ic('menu', 20) + '</button><button class="ib" data-act="back" aria-label="رجوع" id="backb">' + ic('back', 18) + '</button><h1 class="top-title" id="ttl"></h1><button class="ib" data-act="go" data-p="today" aria-label="الرئيسية">' + ic('home', 19) + '</button>' +
+      '<div class="main"><header class="top"><button class="ib" data-act="rail" aria-label="القايمة">' + ic('menu', 20) + '</button><button class="ib" data-act="back" aria-label="رجوع" id="backb">' + ic('back', 18) + '</button><h1 class="top-title" id="ttl"></h1><button class="ib" data-act="go" data-p="' + firstPage() + '" aria-label="الرئيسية">' + ic('home', 19) + '</button>' +
       '<button class="top-search" data-act="quick">' + ic('search', 16) + '<span>ابحث… أو اضغط</span><kbd>Ctrl+K</kbd></button>' + liveBox + '<span class="top-sp"></span>' +
       '<button class="ib" data-act="refresh" aria-label="تحديث">' + ic('refresh', 18) + '</button><button class="ib" data-act="theme" aria-label="فاتح / غامق" id="thb">' + ic(K.theme.dark() ? 'sun' : 'moon', 18) + '</button><button class="ib" data-act="bell" aria-label="التنبيهات">' + ic('bell', 19) + '<span class="nd" id="bell-dot" hidden></span></button></header>' +
       '<header class="mhead"><div class="mhead-row"><button class="ib" data-act="more" aria-label="القايمة">' + ic('menu', 20) + '</button><span class="brand-t"><b>' + esc(s.company) + '</b><span>' + esc(S.me.name) + '</span></span><button class="ib" data-act="bell" aria-label="التنبيهات">' + ic('bell', 19) + '<span class="nd" id="bell-dot2" hidden></span></button><button class="ib" data-act="quick" aria-label="بحث">' + ic('search', 19) + '</button><button class="ib" data-act="theme" aria-label="فاتح / غامق">' + ic(K.theme.dark() ? 'sun' : 'moon', 18) + '</button></div>' + liveBox.replace('id="live"', '').replace('id="live-track"', 'id="live-track2"') + '</header>' +
@@ -94,12 +106,12 @@
       '<button class="bn-item ' + (inMore ? 'on' : '') + '" data-act="more">' + ic('grid', 22) + 'المزيد' + (moreN ? '<span class="badge">' + moreN + '</span>' : '') + '</button>';
     K.glass(bn);
     $('#ttl').textContent = titleOf(S.page);
-    const alerts = (S.counts.requests || 0) + (S.counts.follow || 0) + (S.counts.chat || 0);
+    const alerts = badgeOf('requests') + badgeOf('follow') + badgeOf('chat') + badgeOf('pacs');
     ['#bell-dot', '#bell-dot2'].forEach(x => { const d = $(x); if (d) { d.hidden = !alerts; d.parentNode.classList.toggle('ring-bell', !!alerts); } });
   }
   function route() {
-    const p = (location.hash.replace(/^#\/?/, '').split('?')[0]) || 'today';
-    S.page = R[p] ? p : 'today';
+    const p = (location.hash.replace(/^#\/?/, '').split('?')[0]) || firstPage();
+    S.page = R[p] && can(p) ? p : firstPage();
     closeDrawer(); $$('.scrim').forEach(x => x.remove());
     Object.values(S.maps).forEach(m => { try { m.remove(); } catch (_) {} }); S.maps = {};
     tabs();
@@ -117,6 +129,7 @@
   let tickAt = 0;
   async function ticker(force) {
     if (!force && Date.now() - tickAt < 20000) return; tickAt = Date.now();
+    if (!has('team')) { const t = S.counts, items = [has('pacs') ? '<span><i>▾</i>' + (t.pacs || 0) + ' حالة أشعة جديدة</span>' : '', has('clients') ? '<span><i>▾</i>' + (t.requests || 0) + ' طلب جديد</span><span><i>▾</i>' + (t.follow || 0) + ' متابعة</span>' : ''].join('') || '<span>' + esc(S.me.name) + '</span>'; ['#live-track', '#live-track2'].forEach(x => { const el = $(x); if (el) el.innerHTML = items + items; }); return; }
     const d = await get('/api/today').catch(() => null); if (!d) return;
     const STX = { in: 'في الشغل', on_way: 'في الطريق', visit: 'عند عميل', out: 'انصرف', absent: 'مجاش', rest: 'أجازة', not_yet: 'لسه' };
     const items = [['في الشغل', d.board.filter(b => ['in', 'on_way', 'visit'].includes(b.state)).length], ['طلبات جديدة', d.counts.requests || 0], ['متابعات النهارده', d.counts.follow || 0]].map(([t, v]) => '<span><i>▾</i>' + v + ' ' + t + '</span>')
@@ -136,9 +149,9 @@
   async function quick() {
     if ($('#qk')) return;
     const m = modal('<div id="qk"><div class="gin">' + ic('search', 18) + '<input class="input" id="qk-q" placeholder="اكتب اسم قسم أو موظف أو عميل…" autocomplete="off"></div><div class="qk-list" id="qk-l"></div></div>');
-    const cl = await clientsList().catch(() => []);
+    const cl = has('clients') ? await clientsList().catch(() => []) : [];
     const all = ALLP.map(([k, t, i]) => ({ t, i, sub: 'قسم', run: () => go(k) }))
-      .concat((S.boot.employees || []).map(e => ({ t: e.name, i: 'users', sub: e.job || 'موظف', run: () => empDay(e.id) })))
+      .concat((has('team') ? S.boot.employees || [] : []).map(e => ({ t: e.name, i: 'users', sub: e.job || 'موظف', run: () => empDay(e.id) })))
       .concat(cl.map(c => ({ t: c.name, i: 'store', sub: c.grp || 'عميل', run: () => clientDrawer(c.id) })));
     let sel = 0, list = [];
     const nq = x => String(x || '').toLowerCase().replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي');
@@ -155,6 +168,11 @@
   }
   /* التنبيهات */
   async function bell() {
+    if (!has('team')) {
+      const it = [has('pacs') && S.counts.pacs ? '<button class="qk-it" data-act="go" data-p="pacs">' + ic('scan', 17) + S.counts.pacs + ' حالة أشعة جديدة<small>الباكس</small></button>' : '', has('clients') && S.counts.requests ? '<button class="qk-it" data-act="go" data-p="requests">' + ic('inbox', 17) + S.counts.requests + ' طلب جديد<small>العملاء</small></button>' : ''].join('');
+      const m = modal('<div class="modal-hd"><h3>التنبيهات</h3><button class="btn ghost icon" data-close aria-label="قفل">' + ic('x') + '</button></div><div class="qk-list">' + (it || '<div class="empty"><b>كله تمام</b>مفيش جديد.</div>') + '</div>');
+      m.el.addEventListener('click', e => { if (e.target.closest('[data-act]')) m.close(); }); return;
+    }
     const d = await get('/api/today').catch(err); if (!d) return;
     const late = d.board.filter(b => b.late_min > 0 && b.att.length), absent = d.board.filter(b => b.state === 'absent');
     const row = (i, cls, t, sub, act) => '<button class="qk-it" ' + act + '><span class="ic" style="width:36px;height:36px;border-radius:12px;display:grid;place-items:center;background:var(--' + cls + '-soft);color:var(--' + cls + ')">' + ic(i, 17) + '</span><span style="display:grid;text-align:start"><b>' + t + '</b><small style="margin:0">' + sub + '</small></span></button>';
@@ -181,6 +199,8 @@
       es.addEventListener('task', ev => { const d = JSON.parse(ev.data || '{}'); const e = empById(d.emp), nm = e ? e.name : 'الموظف'; if (d.step === 'accepted') toast(nm + ' قبل المهمة'); else if (d.step === 'on_way') toast(nm + ' في الطريق'); else if (d.arrived) toast(nm + ' وصل للعميل ✓', 'hivis'); else if (d.done) toast(nm + ' حلّ المشكلة ✓', 'hivis'); soft(['today', 'tasks', 'map']); ticker(true); });
       es.addEventListener('taskmove', ev => { const d = JSON.parse(ev.data || '{}'); $$('[data-tk="' + d.id + '"]').forEach(el => { const p = d.d0 ? Math.max(0, Math.min(1, 1 - (d.dist || 0) / d.d0)) : 0, pc = 50 + 25 * p; el.style.setProperty('--p', pc + '%'); el.style.setProperty('--to', pc + '%'); if (S.tkPrev[d.id]) S.tkPrev[d.id].pct = pc; const dd = $('.tk-d', el); if (dd) dd.textContent = K.dist(d.dist); }); });
       es.addEventListener('visit', () => soft(['today', 'map']));
+      es.addEventListener('pacs', ev => { if (!has('pacs')) return; const d = JSON.parse(ev.data || '{}'); if (d.done) { toast('وصلت حالة أشعة — ' + (d.patient || 'من غير اسم') + ' · ' + d.n + ' صورة', 'hivis'); refreshCounts(); } if (S.page === 'pacs' && PACS.onEvent) PACS.onEvent(d); });
+      es.addEventListener('pacsjob', ev => { if (!has('pacs')) return; const j = JSON.parse(ev.data || '{}'); PACS.job(j); });
       es.addEventListener('client', () => soft(['clients', 'follow']));
       es.addEventListener('loc', ev => { const d = JSON.parse(ev.data || '{}'); moveEmp(d); });
       es.onerror = () => {};
@@ -195,7 +215,7 @@
 
   /* ── الأفعال ── */
   const ACT = {
-    go: b => go(b.dataset.p),
+    go: b => go(can(b.dataset.p) ? b.dataset.p : firstPage()),
     rail: () => { if (innerWidth <= 900) return moreSheet(); const a = $('#app'); a.classList.toggle('rail'); try { localStorage.setItem('tq-rail', a.classList.contains('rail') ? '1' : '0'); } catch (_) {} Object.values(S.maps).forEach(m => setTimeout(() => m.invalidateSize(), 300)); },
     back: () => { if (history.length > 1) history.back(); else go('today'); },
     more: () => moreSheet(),
@@ -772,8 +792,9 @@
   R.settings = async function () {
     await loadBoot(); tabs();
     const s = S.boot.settings;
-    const sec = sessionStorage.getItem('tq-set') || S.setSec || 'company'; sessionStorage.removeItem('tq-set'); S.setSec = sec;
-    const NAV = [['company', 'الشركة'], ['shift', 'الدوام'], ['track', 'الموقع والتتبع'], ['portal', 'لينك العميل'], ['pay', 'المرتبات'], ['users', 'المديرين'], ['me', 'حسابي والإشعارات'], ['data', 'النسخة الاحتياطية']];
+    const sec = sessionStorage.getItem('tq-set') || S.setSec || (has('settings') ? 'company' : 'me'); sessionStorage.removeItem('tq-set'); S.setSec = sec;
+    const NAV = (has('settings') ? [['company', 'الشركة'], ['shift', 'الدوام'], ['track', 'الموقع والتتبع'], ['portal', 'لينك العميل'], ['pay', 'المرتبات'], ['users', 'المستخدمين والصلاحيات']] : []).concat([['me', 'حسابي والإشعارات']], has('settings') ? [['data', 'النسخة الاحتياطية']] : []);
+    if (!NAV.some(x => x[0] === sec)) { S.setSec = 'me'; return R.settings(); }
     const F = (k, label, attrs) => '<label class="field"><span>' + label + '</span><input class="input" name="' + k + '" value="' + esc(s[k]) + '" ' + (attrs || '') + '></label>';
     const T = (k, label, ph) => '<label class="field"><span>' + label + '</span><textarea class="input" name="' + k + '" placeholder="' + esc(ph || '') + '">' + esc(s[k]) + '</textarea></label>';
     const save = '<div class="row"><span class="grow"></span><button class="btn primary">حفظ</button></div>';
@@ -784,7 +805,7 @@
         '<div class="card pad" style="margin-top:16px"><section><div class="row"><h3 class="grow">مقرات الشغل</h3><button class="btn sm" id="site-add">' + ic('plus', 15) + 'مقر</button></div><p class="muted small">الحضور بيتحسب على أقرب مقر. دوس على الخريطة عشان تحدد المكان.</p>' + (S.boot.sites.map(x => '<div class="row" style="padding:8px 0;border-bottom:1px solid var(--line)">' + ic('pin', 16) + '<b class="grow">' + esc(x.name) + '</b><span class="muted small">نطاق ' + x.radius + ' م</span><button class="btn sm ghost" data-act="site" data-id="' + x.id + '">' + ic('edit', 14) + '</button></div>').join('') || '<div class="muted small">مفيش مقرات — الحضور بيتسجل من أي مكان.</div>') + '</section></div>',
       portal: '<form class="card pad" data-save><section><h3>لينك العميل</h3><p class="muted small">اللي العميل يقدر يطلبه من صفحته.</p>' + T('order_items', 'الأصناف (سطر لكل صنف)') + T('devices', 'أنواع الأجهزة في طلب الصيانة') + save + '</section></form>',
       pay: '<form class="card pad" data-save><section><h3>قواعد المرتبات</h3><div class="grid2">' + F('pay_days', 'أيام الشهر في الحساب', 'type="number" min="20" max="31"') + F('late_mult', 'مضاعف خصم التأخير', 'type="number" step="0.25" min="0"') + F('absent_mult', 'مضاعف خصم الغياب', 'type="number" step="0.25" min="0"') + F('ot_mult', 'مضاعف الإضافي', 'type="number" step="0.25" min="0"') + '</div><p class="muted small">أجر اليوم = المرتب ÷ أيام الشهر. دقيقة التأخير = أجر اليوم ÷ دقايق الوردية × المضاعف.</p>' + save + '</section></form>',
-      users: '<div class="card pad"><section><div class="row"><h3 class="grow">المديرين</h3>' + (S.me.role === 'admin' ? '<button class="btn sm" id="u-add">' + ic('plus', 15) + 'مدير</button>' : '') + '</div><div id="ulist" class="muted small">بيحمّل…</div></section></div>',
+      users: '<div class="card pad"><section><div class="row"><h3 class="grow">المستخدمين والصلاحيات</h3>' + (S.me.role === 'admin' ? '<button class="btn sm primary" id="u-add">' + ic('plus', 15) + 'مستخدم</button>' : '') + '</div><p class="muted small">كل مستخدم بيشوف الأقسام اللي معلّم عليها بس — مثلا موظف الاستقبال: «حالات المرضى (QR)» و«الباكس». المدير العام بيشوف كل حاجة.</p><div id="ulist" class="muted small">بيحمّل…</div></section></div>',
       me: '<form class="card pad" id="pwf"><section><h3>حسابي</h3><p class="muted small">' + esc(S.me.name) + ' · @' + esc(S.me.username) + '</p><div class="grid2"><label class="field"><span>الباسورد الحالي</span><input class="input" type="password" name="old" autocomplete="current-password" required></label><label class="field"><span>الباسورد الجديد</span><input class="input" type="password" name="pw" autocomplete="new-password" minlength="6" required></label></div><div class="row"><span class="grow"></span><button class="btn primary">غيّر الباسورد</button></div></section></form>' +
         '<div class="card pad" style="margin-top:16px"><section><h3>الإشعارات على الجهاز ده</h3><p class="muted small">حضور وانصراف، طلبات العملاء، الرسايل، ووصول الموظفين — حتى والبرنامج مقفول.</p><div class="row"><button class="btn hivis" id="push-on">' + ic('bell', 16) + 'شغّل الإشعارات</button><button class="btn" id="push-test">جرّب</button></div></section></div>' +
         '<div class="card pad" style="margin-top:16px"><section><h3>الشكل</h3><div class="seg"><button data-act="th" data-v="auto" class="' + (K.theme.get() === 'auto' ? 'on' : '') + '">زي الجهاز</button><button data-act="th" data-v="light" class="' + (K.theme.get() === 'light' ? 'on' : '') + '">فاتح</button><button data-act="th" data-v="dark" class="' + (K.theme.get() === 'dark' ? 'on' : '') + '">غامق</button></div></section></div>',
@@ -821,13 +842,43 @@
     $('#stf', m.el).onsubmit = ev => { ev.preventDefault(); busy(ev.submitter, async () => { await post('/api/sites', Object.assign(form($('#stf', m.el)), { id: x.id })); m.close(); toast('اتحفظ'); R.settings(); }); };
   }
   async function loadUsers() {
-    const d = await get('/api/users');
-    $('#ulist').innerHTML = d.users.map(u => '<div class="row" style="padding:10px 0;border-bottom:1px solid var(--line);color:var(--ink)"><b class="grow">' + esc(u.name) + ' <span class="faint small" dir="ltr">@' + esc(u.username) + '</span></b>' + chip(u.role === 'admin' ? 'مدير عام' : 'مدير') + (S.me.role === 'admin' && u.id !== S.me.id ? '<button class="btn sm ghost danger" data-act="udel" data-id="' + u.id + '">' + ic('trash', 14) + '</button>' : '') + '</div>').join('');
-    const a = $('#u-add'); if (a) a.onclick = () => {
-      const m = modal('<div class="modal-hd"><h3>مدير جديد</h3></div><form id="uf" style="display:grid;gap:12px"><label class="field"><span>الاسم</span><input class="input" name="name" required></label><label class="field"><span>اسم الدخول (إنجليزي)</span><input class="input" name="username" dir="ltr" required></label><label class="check"><input type="checkbox" name="admin"> مدير عام (يضيف ويمسح مديرين)</label><div class="modal-ft"><button type="button" class="btn" data-close>رجوع</button><button class="btn primary">إضافة</button></div></form>');
-      $('#uf', m.el).onsubmit = ev => { ev.preventDefault(); busy(ev.submitter, async () => { const f = form($('#uf', m.el)); const r = await post('/api/users', { name: f.name, username: f.username, role: f.admin ? 'admin' : 'manager' }); m.close(); modal('<div class="modal-hd"><h3>بيانات الدخول</h3></div><div class="secret"><span class="small muted">اسم الدخول</span><code>' + esc(r.username) + '</code><span class="small muted">الباسورد</span><code>' + esc(r.password) + '</code></div><div class="modal-ft"><button class="btn primary" data-close>تمام</button></div>'); loadUsers(); }); };
-    };
+    const d = await get('/api/users'), AP = d.all_perms || S.allPerms || {}, isA = S.me.role === 'admin';
+    const PI = { team: 'users', pay: 'cash', clients: 'store', cases: 'qr', pacs: 'scan', settings: 'gear' };
+    $('#ulist').innerHTML = '<div class="ulist">' + d.users.map(u => '<div class="urow"><span class="uav">' + esc((u.name || '?').trim().charAt(0)) + '</span><div class="grow" style="min-width:0"><b>' + esc(u.name) + '</b> <span class="faint small" dir="ltr">@' + esc(u.username) + '</span>' +
+      '<div class="uperms">' + (u.role === 'admin' ? '<span class="chip brand">' + ic('star', 12) + ' مدير عام — كل الصلاحيات</span>' : u.perms.map(k => '<span class="chip">' + ic(PI[k] || 'check', 12) + ' ' + esc((AP[k] || k).split(' — ')[0].split(' (')[0]) + '</span>').join('')) + '</div>' +
+      '<div class="xs faint">' + (u.last_login_at ? 'آخر دخول ' + dmy(u.last_login_at) + ' ' + hm(u.last_login_at) : 'لسه مدخلش') + '</div></div>' +
+      (isA && u.id !== S.me.id ? '<div class="row" style="gap:6px"><button class="btn sm" data-act="uedit" data-id="' + u.id + '">' + ic('edit', 14) + 'الصلاحيات</button><button class="btn sm ghost" data-act="ureset" data-id="' + u.id + '" title="باسورد جديد">' + ic('key', 14) + '</button><button class="btn sm ghost danger" data-act="udel" data-id="' + u.id + '">' + ic('trash', 14) + '</button></div>' : '') + '</div>').join('') + '</div>';
+    S.users = d.users;
+    const a = $('#u-add'); if (a) a.onclick = () => userForm({}, AP);
   }
+  function permBoxes(sel, AP, role) {
+    const PI = { team: 'users', pay: 'cash', clients: 'store', cases: 'qr', pacs: 'scan', settings: 'gear' };
+    return '<div class="perm-role seg"><button type="button" data-role="manager" class="' + (role !== 'admin' ? 'on' : '') + '">صلاحيات محددة</button><button type="button" data-role="admin" class="' + (role === 'admin' ? 'on' : '') + '">مدير عام (كل حاجة)</button></div>' +
+      '<div class="perm-grid" ' + (role === 'admin' ? 'hidden' : '') + '>' + Object.entries(AP).map(([k, t]) => '<label class="perm"><input type="checkbox" name="p_' + k + '" ' + (sel.includes(k) ? 'checked' : '') + '><span class="pi">' + ic(PI[k] || 'check', 18) + '</span><span>' + esc(t) + '</span><i>' + ic('check', 13) + '</i></label>').join('') + '</div>';
+  }
+  function wirePerms(root) {
+    let role = $('.perm-role .on', root).dataset.role;
+    $$('.perm-role button', root).forEach(b => b.onclick = () => { role = b.dataset.role; $$('.perm-role button', root).forEach(x => x.classList.toggle('on', x === b)); $('.perm-grid', root).hidden = role === 'admin'; });
+    return () => ({ role, perms: $$('.perm input:checked', root).map(i => i.name.slice(2)) });
+  }
+  function credModal(r, t) { modal('<div class="modal-hd"><h3>' + (t || 'بيانات الدخول') + '</h3></div><div class="secret"><span class="small muted">اسم الدخول</span><code dir="ltr">' + esc(r.username) + '</code><span class="small muted">الباسورد</span><code dir="ltr">' + esc(r.password) + '</code></div><p class="small muted" style="margin-top:10px">بيدخل من نفس لينك لوحة الإدارة: <b dir="ltr">' + esc(location.host) + '</b></p><div class="modal-ft"><button class="btn" data-act="copy" data-text="' + esc('لينك: ' + location.origin + '\nاسم الدخول: ' + r.username + '\nالباسورد: ' + r.password) + '">' + ic('copy', 15) + 'انسخ</button><button class="btn primary" data-close>تمام</button></div>'); }
+  function userForm(u, AP) {
+    const isNew = !u.id;
+    const m = modal('<div class="modal-hd"><h3>' + (isNew ? 'مستخدم جديد' : 'صلاحيات ' + esc(u.name)) + '</h3></div><form id="uf" style="display:grid;gap:12px">' +
+      (isNew ? '<div class="grid2"><label class="field"><span>الاسم</span><input class="input" name="name" required></label><label class="field"><span>اسم الدخول (إنجليزي)</span><input class="input" name="username" dir="ltr" required></label></div>' : '') +
+      '<div class="field"><span>يقدر يفتح</span>' + permBoxes(u.perms || ['cases', 'pacs'], AP, u.role) + '</div>' +
+      '<div class="modal-ft"><button type="button" class="btn" data-close>رجوع</button><button class="btn primary">' + (isNew ? 'إضافة' : 'حفظ') + '</button></div></form>', { wide: true });
+    const read = wirePerms(m.el);
+    $('#uf', m.el).onsubmit = ev => { ev.preventDefault(); busy(ev.submitter, async () => {
+      const p = read();
+      if (isNew) { const f = form($('#uf', m.el)); const r = await post('/api/users', { name: f.name, username: f.username, role: p.role, perms: p.perms }); m.close(); credModal(r); }
+      else { await post('/api/users/perms', { id: u.id, role: p.role, perms: p.perms }); m.close(); toast('الصلاحيات اتحفظت — هتتطبق أول ما يعمل تحديث'); }
+      loadUsers();
+    }); };
+  }
+  ACT.uedit = b => userForm(S.users.find(x => x.id === b.dataset.id), S.allPerms);
+  ACT.ureset = async b => { const u = S.users.find(x => x.id === b.dataset.id); if (!await confirm('باسورد جديد لـ ' + u.name + '؟', 'الباسورد القديم هيوقف ويتعمله خروج من كل الأجهزة.', 'غيّره')) return; const r = await post('/api/users/reset', { id: u.id }); credModal(r, 'الباسورد الجديد'); };
+
   ACT.udel = async b => { if (await confirm('مسح المدير ده؟', '', 'مسح', true)) { await post('/api/users/del', { id: b.dataset.id }).catch(err); loadUsers(); } };
 
   /* ════ باركود لينك العميل — استيكر يتلزق على الطابعة (نفس Ozarex) ════ */
@@ -948,6 +999,247 @@
   };
   /* casesModal يعيد تحميل الصفحة لما يتقفل */
 
+
+  /* ════════ الباكس (DICOM): استقبال من الأجهزة · عرض · PDF · إرسال ════════ */
+  const PACS = { jobs: {}, tab: 'studies', q: '', mod: '', sel: new Set() };
+  const MODN = { CT: 'مقطعية', MR: 'رنين', US: 'سونار', CR: 'أشعة عادية', DX: 'أشعة رقمية', DR: 'أشعة رقمية', MG: 'ماموجرام', XA: 'قسطرة', RF: 'صبغة', NM: 'مسح ذري', PT: 'PET', OT: 'أخرى', SC: 'صور', PX: 'بانوراما', IO: 'أسنان', ES: 'مناظير', BMD: 'كثافة عظام', SR: 'تقرير' };
+  const fmtB = b => !b ? '0' : b >= 1073741824 ? (b / 1073741824).toFixed(2) + ' GB' : b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
+  const dcmD = d => d && d.length >= 8 ? d.slice(6, 8) + '/' + d.slice(4, 6) + '/' + d.slice(0, 4) : '';
+  const modOf = s => String(s.modality || '').split(',')[0] || 'OT';
+  let dcmP = null;
+  const needDicom = () => dcmP || (dcmP = new Promise((ok, no) => { if (window.OZDicom) return ok(window.OZDicom); const sc = document.createElement('script'); sc.src = '/cases-dicom.js?v=2'; sc.onload = () => ok(window.OZDicom); sc.onerror = () => { dcmP = null; no(new Error('مش قادر أحمّل قارئ الـ DICOM')); }; document.head.appendChild(sc); }));
+  const imgCache = new Map();
+  async function dcmImg(sop, win, q) {
+    const k = sop + '|' + (win || 'auto') + '|' + (q || .85); if (imgCache.has(k)) return imgCache.get(k);
+    const D = await needDicom(), r = await fetch('/api/pacs/file/' + encodeURIComponent(sop), { credentials: 'same-origin' });
+    if (!r.ok) throw new Error('الملف مش موجود');
+    const out = D.decode(new Uint8Array(await r.arrayBuffer()), { win: win || 'auto', inv: false, q: q || .85 });
+    if (!out) throw new Error('مش صورة');
+    if (imgCache.size > 400) imgCache.delete(imgCache.keys().next().value);
+    imgCache.set(k, out); return out;
+  }
+  const copyBtn = t => '<button class="pc-copy" data-act="copy" data-text="' + esc(t) + '" title="انسخ">' + ic('copy', 14) + '</button>';
+
+  R.pacs = async function (soft) {
+    const qs = '?q=' + encodeURIComponent(PACS.q) + '&mod=' + encodeURIComponent(PACS.mod);
+    const [st, li] = await Promise.all([get('/api/pacs/status'), get('/api/pacs/studies' + qs)]);
+    PACS.st = st; PACS.list = li.studies; PACS.mods = li.mods;
+    (st.jobs || []).forEach(j => { PACS.jobs[j.id] = j; });
+    if (soft && $('#pbody') && PACS.tab === 'studies') { $('#pbody').innerHTML = studiesHtml(); heroNums(); return; }
+    const S0 = st.status, ep = st.endpoints || [], main = ep[0];
+    const pill = S0.listening ? '<span class="pstat on"><i></i>بيستقبل دلوقتي</span>' : st.settings.pacs_on !== '1' ? '<span class="pstat off"><i></i>الاستقبال مقفول</span>' : '<span class="pstat err"><i></i>' + esc(S0.error || 'مش شغال') + '</span>';
+    const tile = (lbl, val, sub, icn) => '<div class="pc-tile"><span class="pc-ic">' + ic(icn, 18) + '</span><div class="grow" style="min-width:0"><small>' + lbl + '</small><b dir="ltr">' + esc(val || '—') + '</b>' + (sub ? '<i dir="ltr">' + esc(sub) + '</i>' : '') + '</div>' + (val ? copyBtn(val) : '') + '</div>';
+    view().innerHTML = '<div class="ph"><div><h1>الباكس <span class="faint" style="font-size:.55em;font-weight:600">DICOM</span></h1><div class="sub">الأجهزة بتبعت الحالات هنا على طول · تتعرض وتتحول PDF وتتبعت لأي جهاز تاني</div></div><div class="row"><button class="btn" data-act="pupload">' + ic('upload', 16) + 'رفع ملفات</button></div></div>' +
+      '<div class="card pacs-hero"><div class="ph-top">' + pill + '<span class="grow"></span><span class="xs faint">اكتب البيانات دي في إعدادات الجهاز (DICOM Send / Store)</span></div>' +
+      '<div class="pc-tiles">' + tile('AE Title', S0.ae, 'Called AE', 'scan') + tile('Port', main ? String(main.port) : String(S0.port || ''), main && main.kind === 'public' ? 'البورت الخارجي' : 'TCP', 'server') + tile(main && main.kind === 'public' ? 'IP' : 'IP / Host', main ? (main.ip || main.host) : '', main && main.ip && main.host !== main.ip ? main.host : '', 'wifi') + '</div>' +
+      (ep.length > 1 ? '<div class="pc-more">' + ep.slice(1).map(e => '<div class="pc-ep"><span class="chip">' + esc(e.label) + '</span><code dir="ltr">' + esc(e.ip || e.host) + ':' + e.port + '</code>' + copyBtn((e.ip || e.host) + ':' + e.port) + '</div>').join('') + '</div>' : '') +
+      (!ep.length ? '<p class="small muted" style="margin-top:10px">' + (S0.railway ? 'السيرفر محتاج TCP Proxy عشان الأجهزة توصله من برّه.' : 'ضيف العنوان العام من «الإعدادات» تحت لو الأجهزة بتبعت من برّه الشبكة.') + '</p>' : '') +
+      '<div class="pc-nums" id="pnums"></div></div>' +
+      '<div class="seg ptabs" id="ptabs">' + [['studies', 'الحالات', 'layers'], ['nodes', 'الأجهزة', 'send'], ['set', 'الإعدادات', 'gear'], ['log', 'السجل', 'clock']].map(([k, t, i]) => '<button data-act="ptab" data-k="' + k + '" class="' + (PACS.tab === k ? 'on' : '') + '">' + ic(i, 15) + t + '</button>').join('') + '</div>' +
+      '<div id="pjobs" class="pjobs"></div><div id="pbody"></div>';
+    heroNums(); drawJobs(); await ptab();
+  };
+  function heroNums() {
+    const st = PACS.st, t = st.totals, dk = st.disk, el = $('#pnums'); if (!el) return;
+    el.innerHTML = '<div><b>' + n(t.n) + '</b><small>حالة</small></div><div><b>' + n(t.i) + '</b><small>صورة</small></div><div><b>' + fmtB(t.b) + '</b><small>المساحة</small></div>' + (dk ? '<div><b>' + fmtB(dk.free) + '</b><small>فاضي على السيرفر</small></div>' : '');
+  }
+  async function ptab() {
+    const b = $('#pbody'); if (!b) return;
+    $$('#ptabs button').forEach(x => x.classList.toggle('on', x.dataset.k === PACS.tab));
+    if (PACS.tab === 'studies') { b.innerHTML = studiesHtml(); return; }
+    if (PACS.tab === 'nodes') { const d = await get('/api/pacs/nodes'); PACS.nodes = d.nodes; b.innerHTML = nodesHtml(); return; }
+    if (PACS.tab === 'log') { const d = await get('/api/pacs/log'); b.innerHTML = logHtml(d.log); return; }
+    if (PACS.tab === 'set') { b.innerHTML = setHtml(); wireSet(); }
+  }
+  ACT.ptab = b => { PACS.tab = b.dataset.k; ptab().catch(err); };
+
+  function studiesHtml() {
+    const L = PACS.list || [];
+    const filt = '<div class="pfilt"><div class="gin grow">' + ic('search', 17) + '<input class="input" id="pq" placeholder="اسم المريض، رقمه، الـ Accession، الجهاز…" value="' + esc(PACS.q) + '"></div><div class="chips-row">' + ['', ...(PACS.mods || [])].map(m => '<button class="fchip ' + (PACS.mod === m ? 'on' : '') + '" data-act="pmod" data-m="' + esc(m) + '">' + (m ? esc(m) + ' <small>' + esc(MODN[m] || '') + '</small>' : 'الكل') + '</button>').join('') + '</div></div>';
+    if (!L.length) return filt + '<div class="card empty pempty"><span class="pe-ic">' + ic('scan', 34) + '</span><b>' + (PACS.q || PACS.mod ? 'مفيش نتايج' : 'مستني أول حالة') + '</b>' + (PACS.q || PACS.mod ? 'جرّب كلمة تانية.' : 'ابعت من الجهاز على الـ AE Title والبورت اللي فوق — أول ما توصل هتظهر هنا لوحدها.') + '</div>';
+    return filt + '<div class="pst-list">' + L.map((s, i) => {
+      const m = modOf(s);
+      return '<div class="pst ' + (s.new ? 'new' : '') + '" data-act="pstudy" data-uid="' + esc(s.uid) + '" style="--i:' + Math.min(i, 14) + '"><span class="pst-mod m-' + esc(m) + '">' + esc(m) + '</span>' +
+        '<div class="grow" style="min-width:0"><div class="pst-nm"><b>' + esc(s.patient_name || 'من غير اسم') + '</b>' + (s.patient_id ? '<span class="faint small" dir="ltr">#' + esc(s.patient_id) + '</span>' : '') + (s.new ? '<span class="chip hivis">جديد</span>' : '') + '</div>' +
+        '<div class="small muted pst-ds">' + esc([MODN[m] || m, s.description, dcmD(s.study_date)].filter(Boolean).join(' · ')) + '</div>' +
+        '<div class="xs faint pst-meta"><span>' + ic('layers', 12) + n(s.n_series) + ' سيريز</span><span>' + ic('scan', 12) + '<b data-pn="' + esc(s.uid) + '">' + n(s.n_inst) + '</b> صورة</span><span>' + fmtB(s.bytes) + '</span><span dir="ltr">' + ic('server', 12) + esc(s.source_ae || s.source_ip || '') + '</span><span>' + dm(s.received_at) + ' ' + hm(s.received_at) + '</span></div></div>' +
+        '<div class="pst-acts"><button class="btn sm" data-act="ppdf" data-uid="' + esc(s.uid) + '" title="PDF">' + ic('file', 15) + '<span>PDF</span></button><button class="btn sm" data-act="psend" data-uid="' + esc(s.uid) + '" title="إرسال">' + ic('send', 15) + '<span>إرسال</span></button></div></div>';
+    }).join('') + '</div>';
+  }
+  let pqT;
+  document.addEventListener('input', e => { if (e.target.id === 'pq') { clearTimeout(pqT); pqT = setTimeout(() => { PACS.q = e.target.value.trim(); R.pacs(true).then(() => { const i = $('#pq'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }); }, 350); } });
+  ACT.pmod = b => { PACS.mod = b.dataset.m; R.pacs(true); };
+  PACS.onEvent = d => {
+    if (d.live && d.uid) { const el = $('[data-pn="' + d.uid + '"]'); if (el) { el.textContent = n(d.n); el.closest('.pst').classList.add('recv'); return; } }
+    clearTimeout(PACS.evT); PACS.evT = setTimeout(() => { if (!$('.scrim')) R.pacs(true).catch(() => {}); }, d.done ? 200 : 1200);
+  };
+
+  /* ── شريط الإرسال الجاري ── */
+  PACS.job = j => {
+    const old = PACS.jobs[j.id]; PACS.jobs[j.id] = j;
+    if (old && old.status === 'run' && j.status !== 'run') {
+      if (j.status === 'done') toast('اتبعتت ' + j.sent + ' صورة لـ ' + j.node + ' ✓', 'hivis');
+      else toast('الإرسال لـ ' + j.node + ': ' + (j.error || (j.failed + ' صورة فشلت')), 'err');
+    }
+    drawJobs();
+  };
+  function drawJobs() {
+    const el = $('#pjobs'); if (!el) return;
+    const L = Object.values(PACS.jobs).filter(j => j.status === 'run' || Date.now() - j.started < 10 * 60000).sort((a, b) => b.id - a.id).slice(0, 4);
+    el.innerHTML = L.map(j => { const p = j.total ? Math.round((j.sent + j.failed) / j.total * 100) : 0; return '<div class="pjob ' + j.status + '"><span class="pj-ic">' + ic(j.status === 'run' ? 'send' : j.status === 'done' ? 'check' : 'x', 15) + '</span><div class="grow" style="min-width:0"><div class="row" style="gap:6px"><b class="small">' + esc(j.patient || 'حالة') + '</b><span class="xs muted">← ' + esc(j.node) + '</span><span class="grow"></span><span class="xs tnum">' + (j.sent + j.failed) + '/' + j.total + (j.status === 'run' ? '' : j.status === 'done' ? ' · ' + ((j.ms || 0) / 1000).toFixed(1) + ' ث' : '') + '</span></div><div class="pj-bar"><i style="width:' + p + '%"></i></div>' + (j.error ? '<div class="xs" style="color:var(--stop)">' + esc(j.error) + '</div>' : '') + '</div></div>'; }).join('');
+  }
+
+  /* ── عرض الدراسة ── */
+  ACT.pstudy = (b, e) => { if (e && e.target.closest('.pst-acts')) return; studyModal(b.dataset.uid).catch(err); };
+  async function studyModal(uid) {
+    const d = await get('/api/pacs/study?uid=' + encodeURIComponent(uid)), s = d.study;
+    const ser = d.series.filter(x => x.modality !== 'SR' && x.modality !== 'PR' && x.modality !== 'KO');
+    const kv = (k, v) => v ? '<div><small>' + k + '</small><b>' + esc(v) + '</b></div>' : '';
+    const m = modal('<div class="modal-hd"><div class="grow"><h3>' + esc(s.patient_name || 'من غير اسم') + '</h3><div class="small muted">' + esc([MODN[modOf(s)] || s.modality, s.description, dcmD(s.study_date)].filter(Boolean).join(' · ')) + '</div></div><button class="btn ghost icon" data-close aria-label="قفل">' + ic('x') + '</button></div>' +
+      '<div class="pv"><div class="pv-main"><div class="pv-stage" id="pv-st"><div class="pv-load">بيحمّل…</div></div><div class="pv-ctl"><input type="range" id="pv-r" min="0" max="0" value="0"><span class="xs tnum" id="pv-n"></span><select class="input sm" id="pv-w"><option value="auto">تلقائي</option><option value="wl">من الجهاز</option><option value="soft">أنسجة</option><option value="brain">مخ</option><option value="bone">عظام</option><option value="lung">رئة</option><option value="full">كامل</option></select></div></div>' +
+      '<div class="pv-side"><div class="pv-series" id="pv-se">' + (ser.length ? ser.map((x, i) => '<button class="pv-s ' + (i ? '' : 'on') + '" data-i="' + i + '"><span class="pv-th" data-th="' + esc(x.sops[0]) + '"></span><span><b class="small">' + esc(x.desc || ('Series ' + (x.no || i + 1))) + '</b><small>' + x.n + ' صورة · ' + esc(x.modality || '') + '</small></span></button>').join('') : '<div class="muted small">مفيش صور</div>') + '</div>' +
+      '<div class="pv-info">' + kv('رقم المريض', s.patient_id) + kv('النوع / السن', [s.sex, s.age].filter(Boolean).join(' · ')) + kv('Accession', s.accession) + kv('الطبيب', s.referring) + kv('المكان', s.institution) + kv('من جهاز', (s.source_ae || '') + (s.source_ip ? ' (' + s.source_ip + ')' : '')) + kv('وصلت', dmy(s.received_at) + ' ' + hm(s.received_at)) + kv('الحجم', n(s.n_inst) + ' صورة · ' + fmtB(s.bytes)) + '</div></div></div>' +
+      '<div class="modal-ft"><button class="btn danger ghost" id="pv-del" style="margin-inline-end:auto">' + ic('trash', 15) + 'مسح</button><a class="btn" href="/api/pacs/zip?uid=' + encodeURIComponent(uid) + '">' + ic('download', 15) + 'ZIP</a><button class="btn" id="pv-send">' + ic('send', 15) + 'إرسال</button><button class="btn primary" id="pv-pdf">' + ic('file', 15) + 'PDF</button></div>', { wide: true });
+    m.el.classList.add('pv-modal');
+    let si = 0, ii = 0, tok = 0;
+    const show = async () => {
+      const x = ser[si]; if (!x) return; const my = ++tok;
+      $('#pv-r', m.el).max = x.n - 1; $('#pv-r', m.el).value = ii; $('#pv-n', m.el).textContent = (ii + 1) + ' / ' + x.n;
+      try { const r = await dcmImg(x.sops[ii], $('#pv-w', m.el).value); if (my !== tok) return; $('#pv-st', m.el).innerHTML = '<img src="' + r.img + '" alt="">'; }
+      catch (e) { if (my === tok) $('#pv-st', m.el).innerHTML = '<div class="pv-load">' + esc(e.message) + '</div>'; }
+    };
+    $$('.pv-s', m.el).forEach(bb => bb.onclick = () => { si = +bb.dataset.i; ii = Math.floor((ser[si].n - 1) / 2); $$('.pv-s', m.el).forEach(z => z.classList.toggle('on', z === bb)); show(); });
+    $('#pv-r', m.el).oninput = ev => { ii = +ev.target.value; show(); };
+    $('#pv-w', m.el).onchange = show;
+    $('#pv-st', m.el).addEventListener('wheel', ev => { ev.preventDefault(); const x = ser[si]; if (!x) return; ii = Math.max(0, Math.min(x.n - 1, ii + (ev.deltaY > 0 ? 1 : -1))); show(); }, { passive: false });
+    if (ser[0]) { ii = Math.floor((ser[0].n - 1) / 2); show(); }
+    (async () => { for (const th of $$('[data-th]', m.el)) { try { const r = await dcmImg(th.dataset.th, 'auto', .6); th.style.backgroundImage = 'url(' + r.img + ')'; } catch (_) { th.classList.add('bad'); } } })();
+    $('#pv-pdf', m.el).onclick = () => pdfModal(uid, d);
+    $('#pv-send', m.el).onclick = () => sendModal([uid], d);
+    $('#pv-del', m.el).onclick = async () => { if (!await confirm('مسح الحالة دي من السيرفر؟', n(s.n_inst) + ' صورة · ' + fmtB(s.bytes) + ' — مش هترجع.', 'امسح', true)) return; await post('/api/pacs/study/del', { uid }); m.close(); toast('اتمسحت'); R.pacs(true); };
+    const row = $('[data-uid="' + uid + '"].pst'); if (row) row.classList.remove('new');
+    refreshCounts();
+  }
+
+  /* ── PDF ── */
+  ACT.ppdf = async b => { const d = await get('/api/pacs/study?uid=' + encodeURIComponent(b.dataset.uid)).catch(err); if (d) pdfModal(b.dataset.uid, d); };
+  function pdfModal(uid, d) {
+    const s = d.study, ser = d.series.filter(x => !['SR', 'PR', 'KO'].includes(x.modality));
+    let o = {}; try { o = JSON.parse(localStorage.getItem('tq-pdf') || '{}'); } catch (_) {}
+    o = Object.assign({ grid: '4x5', page: 'a3', ori: 'portrait', every: 1, win: 'auto', black: true, hdr: true, meta: true, clinic: true }, o);
+    const G = ['1x1', '2x2', '3x3', '3x4', '4x4', '4x5', '5x6', '6x8'];
+    const opt = (v, t, cur) => '<option value="' + v + '" ' + (String(cur) === String(v) ? 'selected' : '') + '>' + t + '</option>';
+    const total = () => ser.filter((x, i) => $('#ps' + i, m.el) && $('#ps' + i, m.el).checked).reduce((a, x) => a + Math.ceil(x.n / (+$('[name=every]', m.el).value || 1)), 0);
+    const m = modal('<div class="modal-hd"><div class="grow"><h3>تحويل لـ PDF</h3><div class="small muted">' + esc(s.patient_name || '') + ' · ' + esc(s.modality || '') + '</div></div><button class="btn ghost icon" data-close aria-label="قفل">' + ic('x') + '</button></div>' +
+      '<form id="pf" style="display:grid;gap:12px"><div class="field"><span>السيريز</span><div class="pdf-ser">' + ser.map((x, i) => '<label class="check"><input type="checkbox" id="ps' + i + '" ' + (x.n > 1 || ser.length < 4 ? 'checked' : '') + '> ' + esc(x.desc || 'Series ' + (x.no || i + 1)) + ' <span class="faint xs">(' + x.n + ')</span></label>').join('') + '</div></div>' +
+      '<div class="grid3"><label class="field"><span>الشبكة</span><select class="input" name="grid">' + G.map(g => opt(g, g.replace('x', ' × '), o.grid)).join('') + '</select></label><label class="field"><span>الورقة</span><select class="input" name="page">' + opt('a3', 'A3', o.page) + opt('a4', 'A4', o.page) + opt('letter', 'Letter', o.page) + '</select></label><label class="field"><span>الاتجاه</span><select class="input" name="ori">' + opt('portrait', 'طولي', o.ori) + opt('landscape', 'عرضي', o.ori) + '</select></label>' +
+      '<label class="field"><span>كل كام صورة</span><select class="input" name="every">' + [1, 2, 3, 4, 5, 10].map(k => opt(k, k === 1 ? 'كل الصور' : 'صورة من كل ' + k, o.every)).join('') + '</select></label><label class="field"><span>النافذة</span><select class="input" name="win">' + opt('auto', 'تلقائي', o.win) + opt('wl', 'من الجهاز', o.win) + opt('soft', 'أنسجة', o.win) + opt('brain', 'مخ', o.win) + opt('bone', 'عظام', o.win) + opt('lung', 'رئة', o.win) + '</select></label><div class="field"><span>&nbsp;</span><div class="small muted" id="pf-n"></div></div></div>' +
+      '<div class="row" style="flex-wrap:wrap;gap:14px"><label class="check"><input type="checkbox" name="black" ' + (o.black ? 'checked' : '') + '> خلفية سودا</label><label class="check"><input type="checkbox" name="hdr" ' + (o.hdr ? 'checked' : '') + '> اسم المريض فوق</label><label class="check"><input type="checkbox" name="clinic" ' + (o.clinic ? 'checked' : '') + '> اسم المركز</label><label class="check"><input type="checkbox" name="meta" ' + (o.meta ? 'checked' : '') + '> بيانات على الصور</label></div>' +
+      '<div class="pdf-bar" id="pf-bar" hidden><i></i></div><div id="pf-out"></div>' +
+      '<div class="modal-ft"><button type="button" class="btn" data-close>رجوع</button><button class="btn primary">' + ic('file', 15) + 'اعمل الـ PDF</button></div></form>', { wide: true });
+    const upd = () => { const t = total(), [c, r] = $('[name=grid]', m.el).value.split('x').map(Number); $('#pf-n', m.el).textContent = t + ' صورة · ' + Math.ceil(t / (c * r) || 0) + ' صفحة'; };
+    $$('input,select', m.el).forEach(x => x.addEventListener('change', upd)); upd();
+    $('#pf', m.el).onsubmit = ev => { ev.preventDefault(); busy(ev.submitter, async () => {
+      const f = form($('#pf', m.el)); localStorage.setItem('tq-pdf', JSON.stringify({ grid: f.grid, page: f.page, ori: f.ori, every: +f.every, win: f.win, black: !!f.black, hdr: !!f.hdr, meta: !!f.meta, clinic: !!f.clinic }));
+      const every = +f.every || 1, sops = [];
+      ser.forEach((x, i) => { if ($('#ps' + i, m.el).checked) x.sops.forEach((sp, k) => { if (k % every === 0) sops.push(sp); }); });
+      if (!sops.length) throw new Error('اختار سيريز واحدة على الأقل');
+      const D = await needDicom(), bar = $('#pf-bar', m.el), out = new Array(sops.length); bar.hidden = false;
+      const setP = (p, t) => { bar.firstChild.style.width = Math.round(p * 100) + '%'; $('#pf-n', m.el).textContent = t; };
+      let done = 0, idx = 0, bad = 0;
+      await Promise.all(Array.from({ length: 4 }, async () => { while (idx < sops.length) { const k = idx++; try { out[k] = await dcmImg(sops[k], f.win, .9); } catch (_) { bad++; } done++; setP(done / sops.length * .6, 'بنقرا الصور ' + done + '/' + sops.length); } }));
+      const list = out.filter(Boolean); if (!list.length) throw new Error('مقدرتش أقرا ولا صورة' + (bad ? ' — ممكن تكون مضغوطة بنوع مش مدعوم' : ''));
+      const JsPDF = await new Promise(r => D.jspdf(r)); if (!JsPDF) throw new Error('مش قادر أحمّل مكتبة الـ PDF');
+      const [cols, rows] = f.grid.split('x').map(Number);
+      const r = await D.buildPdf(JsPDF, list, { cols, rows, page: f.page, ori: f.ori, margin: 6, hdr: !!f.hdr, clinic: !!f.clinic, meta: !!f.meta, black: !!f.black, clinicName: S.boot.settings.company, doctor: s.referring || '' }, (dd, tt) => setP(.6 + dd / tt * .4, 'بنرسم الصفحات ' + dd + '/' + tt));
+      setP(1, 'خلص ✓ ' + r.pages + ' صفحة' + (bad ? ' · ' + bad + ' صورة اتشالت' : ''));
+      const nm = ((s.patient_name || 'حالة') + (s.modality ? ' - ' + modOf(s) : '') + (s.study_date ? ' - ' + dcmD(s.study_date).replace(/\//g, '-') : '')).replace(/[\\/:*?"<>|]+/g, ' ').trim() + '.pdf';
+      const file = new File([r.blob], nm, { type: 'application/pdf' }), url = URL.createObjectURL(file);
+      const a = document.createElement('a'); a.href = url; a.download = nm; document.body.appendChild(a); a.click(); a.remove();
+      $('#pf-out', m.el).innerHTML = '<div class="pdf-done">' + ic('file', 22) + '<div class="grow"><b class="small">' + esc(nm) + '</b><div class="xs muted">' + r.pages + ' صفحة · ' + fmtB(file.size) + '</div></div><a class="btn sm" href="' + url + '" target="_blank" rel="noopener">فتح</a><a class="btn sm" href="' + url + '" download="' + esc(nm) + '">' + ic('download', 14) + 'تنزيل</a>' + (navigator.canShare && navigator.canShare({ files: [file] }) ? '<button type="button" class="btn sm primary" id="pf-share">' + ic('wa', 14) + 'مشاركة</button>' : '') + '</div>' + (has('cases') ? '<p class="xs muted" style="margin-top:8px">عايز المريض يفتحه بالباركود؟ ارفعه من «حالات المرضى (باركود)» في صفحة المركز.</p>' : '');
+      const sh = $('#pf-share', m.el); if (sh) sh.onclick = () => navigator.share({ files: [file], title: nm }).catch(() => {});
+    }); };
+  }
+
+  /* ── الإرسال ── */
+  ACT.psend = async b => { const d = await get('/api/pacs/study?uid=' + encodeURIComponent(b.dataset.uid)).catch(err); if (d) sendModal([b.dataset.uid], d); };
+  async function sendModal(uids, d) {
+    const nodes = (await get('/api/pacs/nodes')).nodes;
+    if (!nodes.length) { if (await confirm('مفيش أجهزة متسجلة', 'ضيف الجهاز أو الـ PACS اللي عايز تبعتله الأول (AE Title + IP + Port).', 'ضيف جهاز')) nodeForm({}); return; }
+    let pick = nodes[0].id;
+    const ser = d ? d.series : [];
+    const m = modal('<div class="modal-hd"><div class="grow"><h3>إرسال الحالة</h3><div class="small muted">' + esc(d ? (d.study.patient_name || '') + ' · ' + n(d.study.n_inst) + ' صورة' : uids.length + ' حالة') + '</div></div><button class="btn ghost icon" data-close aria-label="قفل">' + ic('x') + '</button></div>' +
+      '<div class="node-pick">' + nodes.map((x, i) => '<button class="np ' + (i ? '' : 'on') + '" data-id="' + x.id + '"><span class="np-ic">' + ic('server', 18) + '</span><span class="grow"><b>' + esc(x.name) + '</b><small dir="ltr">' + esc(x.ae) + ' @ ' + esc(x.host) + ':' + x.port + '</small></span><i>' + ic('check', 14) + '</i></button>').join('') + '</div>' +
+      (ser.length > 1 ? '<details class="small" style="margin-top:12px"><summary class="muted">سيريز معيّنة بس؟</summary><div class="pdf-ser" style="margin-top:8px">' + ser.map((x, i) => '<label class="check"><input type="checkbox" data-su="' + esc(x.uid) + '" checked> ' + esc(x.desc || 'Series ' + (x.no || i + 1)) + ' <span class="faint xs">(' + x.n + ')</span></label>').join('') + '</div></details>' : '') +
+      '<div class="modal-ft"><button class="btn" data-close>رجوع</button><button class="btn primary" id="sd-go">' + ic('send', 15) + 'ابعت دلوقتي</button></div>');
+    $$('.np', m.el).forEach(bb => bb.onclick = () => { pick = bb.dataset.id; $$('.np', m.el).forEach(z => z.classList.toggle('on', z === bb)); });
+    $('#sd-go', m.el).onclick = ev => busy(ev.target, async () => {
+      const boxes = $$('[data-su]', m.el), series = boxes.length && boxes.some(x => !x.checked) ? boxes.filter(x => x.checked).map(x => x.dataset.su) : null;
+      if (series && !series.length) throw new Error('اختار سيريز');
+      const r = await post('/api/pacs/send', { uids, node: pick, series });
+      r.jobs.forEach(j => { PACS.jobs[j.id] = j; }); drawJobs(); m.close(); toast('بدأ الإرسال…');
+    });
+  }
+
+  /* ── الأجهزة ── */
+  function nodesHtml() {
+    const L = PACS.nodes || [];
+    return '<div class="row" style="margin-bottom:12px"><p class="muted small grow" style="margin:0">الأجهزة أو الـ PACS أو الـ Workstations اللي بتبعتلها الحالات.</p><button class="btn primary sm" data-act="pnode">' + ic('plus', 15) + 'جهاز</button></div>' +
+      (L.length ? '<div class="nodes">' + L.map(x => '<div class="card node"><span class="np-ic">' + ic('server', 20) + '</span><div class="grow" style="min-width:0"><b>' + esc(x.name) + '</b>' + (x.auto ? ' <span class="chip hivis">' + ic('zap', 11) + ' بيتبعتله تلقائي</span>' : '') + '<div class="small muted" dir="ltr" style="text-align:right">' + esc(x.ae) + ' @ ' + esc(x.host) + ':' + x.port + '</div><div class="xs faint">' + (x.last_ok ? 'آخر اتصال ناجح ' + dm(x.last_ok) + ' ' + hm(x.last_ok) : 'لسه متجرّبش') + (x.parallel > 1 ? ' · ' + x.parallel + ' اتصالات مع بعض' : '') + '</div></div><div class="row" style="gap:6px"><button class="btn sm" data-act="pecho" data-id="' + x.id + '">' + ic('wifi', 14) + 'اختبار</button><button class="btn sm ghost" data-act="pnode" data-id="' + x.id + '">' + ic('edit', 14) + '</button></div></div>').join('') + '</div>'
+        : '<div class="card empty"><b>مفيش أجهزة لسه</b>ضيف جهاز عشان تقدر تبعت له الحالات.</div>');
+  }
+  ACT.pnode = b => nodeForm((PACS.nodes || []).find(x => x.id === b.dataset.id) || {});
+  ACT.pecho = b => busy(b, async () => { const r = await post('/api/pacs/echo', { id: b.dataset.id }); toast('الجهاز رد ✓ (' + r.ms + ' ms)', 'hivis'); });
+  function nodeForm(x) {
+    const m = modal('<div class="modal-hd"><h3>' + (x.id ? 'تعديل الجهاز' : 'جهاز جديد') + '</h3></div><form id="nf" style="display:grid;gap:12px"><label class="field"><span>الاسم</span><input class="input" name="name" value="' + esc(x.name || '') + '" placeholder="مثلا: PACS المستشفى / جهاز المقطعية" required></label>' +
+      '<div class="grid3"><label class="field"><span>AE Title</span><input class="input" name="ae" dir="ltr" maxlength="16" value="' + esc(x.ae || '') + '" required></label><label class="field"><span>IP / Host</span><input class="input" name="host" dir="ltr" value="' + esc(x.host || '') + '" placeholder="192.168.1.20" required></label><label class="field"><span>Port</span><input class="input" name="port" type="number" dir="ltr" value="' + (x.port || 104) + '" required></label></div>' +
+      '<div class="grid2"><label class="field"><span>السرعة (اتصالات مع بعض)</span><select class="input" name="parallel">' + [1, 2, 3, 4].map(k => '<option value="' + k + '" ' + ((x.parallel || 1) === k ? 'selected' : '') + '>' + k + (k === 1 ? ' (الأضمن)' : k === 4 ? ' (أسرع)' : '') + '</option>').join('') + '</select></label><label class="check" style="align-self:end;padding-bottom:10px"><input type="checkbox" name="auto" ' + (x.auto ? 'checked' : '') + '> ابعت له أي حالة توصل تلقائي</label></div>' +
+      '<div class="row"><button type="button" class="btn sm" id="nf-t">' + ic('wifi', 14) + 'اختبار الاتصال (C-ECHO)</button><span class="small muted" id="nf-r"></span></div>' +
+      '<div class="modal-ft">' + (x.id ? '<button type="button" class="btn danger ghost" id="nf-del" style="margin-inline-end:auto">مسح</button>' : '') + '<button type="button" class="btn" data-close>رجوع</button><button class="btn primary">حفظ</button></div></form>', { wide: true });
+    $('#nf-t', m.el).onclick = ev => busy(ev.target, async () => { const f = form($('#nf', m.el)); $('#nf-r', m.el).textContent = 'بنجرّب…'; try { const r = await post('/api/pacs/echo', f); $('#nf-r', m.el).innerHTML = '<b style="color:var(--go)">رد ✓ ' + r.ms + ' ms</b>'; } catch (e) { $('#nf-r', m.el).innerHTML = '<b style="color:var(--stop)">' + esc(e.message) + '</b>'; } });
+    const del = $('#nf-del', m.el); if (del) del.onclick = async () => { await post('/api/pacs/nodes/del', { id: x.id }); m.close(); PACS.tab = 'nodes'; ptab(); };
+    $('#nf', m.el).onsubmit = ev => { ev.preventDefault(); busy(ev.submitter, async () => { await post('/api/pacs/nodes', Object.assign(form($('#nf', m.el)), { id: x.id })); m.close(); toast('اتحفظ'); if (PACS.tab === 'nodes') ptab(); }); };
+  }
+
+  /* ── الإعدادات ── */
+  function setHtml() {
+    const s = PACS.st.settings, st = PACS.st.status;
+    const ck = (k, t, sub) => '<label class="check"><input type="checkbox" name="' + k + '" ' + (s[k] === '1' ? 'checked' : '') + '> <span>' + t + (sub ? '<br><small class="muted">' + sub + '</small>' : '') + '</span></label>';
+    return '<form class="card pad" id="psf"><section><h3>الاستقبال</h3>' + ck('pacs_on', 'استقبل الحالات من الأجهزة') +
+      '<div class="grid2"><label class="field"><span>AE Title بتاعنا</span><input class="input" name="pacs_ae" dir="ltr" maxlength="16" value="' + esc(s.pacs_ae) + '"></label><label class="field"><span>Port</span><input class="input" name="pacs_port" type="number" dir="ltr" value="' + esc(st.fixed_port || s.pacs_port) + '" ' + (st.fixed_port ? 'disabled' : '') + '>' + (st.fixed_port ? '<small class="muted">ثابت على السيرفر — الأجهزة تبعت على البورت الخارجي اللي فوق</small>' : '') + '</label></div>' +
+      '<label class="field"><span>العنوان العام (اختياري)</span><input class="input" name="pacs_public" dir="ltr" value="' + esc(s.pacs_public) + '" placeholder="41.33.20.10:11112"><small class="muted">لو عامل Port Forwarding من الراوتر — بيظهر فوق للأجهزة</small></label></section>' +
+      '<section><h3>الأمان</h3>' + ck('pacs_called', 'ارفض لو الجهاز باعت على AE Title غير بتاعنا') + ck('pacs_strict', 'استقبل من الأجهزة دي بس', 'الـ AE Title بتاع كل جهاز في سطر') +
+      '<textarea class="input" name="pacs_allow" dir="ltr" rows="3" placeholder="CT_SCANNER&#10;US_ROOM1">' + esc(s.pacs_allow) + '</textarea></section>' +
+      '<section><h3>المساحة</h3><label class="field"><span>امسح الحالات الأقدم من (يوم)</span><input class="input" name="pacs_keep_days" type="number" min="0" value="' + esc(s.pacs_keep_days) + '" style="max-width:160px"><small class="muted">0 = متمسحش أبدا</small></label></section>' +
+      '<div class="row"><span class="grow"></span><button class="btn primary">حفظ وإعادة تشغيل الاستقبال</button></div></form>';
+  }
+  function wireSet() {
+    const f = $('#psf'); f.onsubmit = ev => { ev.preventDefault(); busy(ev.submitter, async () => { const o = form(f); ['pacs_on', 'pacs_called', 'pacs_strict'].forEach(k => { o[k] = !!o[k]; }); if (PACS.st.status.fixed_port) delete o.pacs_port; const r = await post('/api/pacs/settings', o); toast(r.status.listening ? 'اتحفظ — بيستقبل على البورت ' + r.status.port : r.status.error || 'اتحفظ — الاستقبال مقفول', r.status.error ? 'err' : ''); PACS.tab = 'set'; R.pacs(); }); };
+  }
+  function logHtml(L) {
+    return '<div class="card">' + (L.length ? '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>الوقت</th><th></th><th>الجهاز</th><th>صور</th><th>المدة</th><th></th></tr></thead><tbody>' + L.map(r => '<tr><td class="xs tnum" style="white-space:nowrap">' + dm(r.at) + ' ' + hm(r.at) + '</td><td>' + (r.dir === 'in' ? '<span class="chip go">' + ic('download', 11) + ' استقبال</span>' : '<span class="chip sky">' + ic('send', 11) + ' إرسال</span>') + '</td><td dir="ltr" class="small" style="text-align:right">' + esc(r.ae || '') + ' <span class="faint">' + esc(r.ip || '') + '</span></td><td class="tnum">' + (r.n || 0) + '</td><td class="xs tnum">' + (r.ms ? (r.ms / 1000).toFixed(1) + ' ث' : '') + '</td><td class="xs ' + (r.ok ? 'muted' : '') + '" style="' + (r.ok ? '' : 'color:var(--stop)') + '">' + (r.ok ? '✓ ' : '') + esc(r.note || '') + '</td></tr>').join('') + '</tbody></table></div>' : '<div class="empty">لسه مفيش حاجة</div>') + '</div>';
+  }
+
+  /* ── رفع ملفات DICOM يدوي ── */
+  ACT.pupload = () => {
+    const m = modal('<div class="modal-hd"><h3>رفع ملفات DICOM</h3><button class="btn ghost icon" data-close aria-label="قفل">' + ic('x') + '</button></div><div class="pdrop" id="pdrop">' + ic('upload', 30) + '<b>اسحب الفولدر أو الملفات هنا</b><span class="small muted">أو</span><div class="row" style="justify-content:center"><button class="btn sm" id="pu-f">اختار ملفات</button><button class="btn sm" id="pu-d">اختار فولدر</button></div></div><div class="pdf-bar" id="pu-bar" hidden><i></i></div><div class="small muted" id="pu-t"></div>');
+    const run = async files => {
+      files = files.filter(f => f.size > 132 && !/\.(txt|xml|html?|exe|ini|inf|jpe?g|png|pdf|dll|js|css|json|zip)$/i.test(f.name));
+      if (!files.length) return toast('مفيش ملفات DICOM', 'err');
+      const bar = $('#pu-bar', m.el); bar.hidden = false; let ok = 0, bad = 0, i = 0;
+      await Promise.all(Array.from({ length: 3 }, async () => { while (i < files.length) { const f = files[i++]; try { const r = await fetch('/api/pacs/upload', { method: 'POST', body: f, credentials: 'same-origin', headers: { 'Content-Type': 'application/dicom' } }); if (!r.ok) throw 0; ok++; } catch (_) { bad++; } bar.firstChild.style.width = Math.round((ok + bad) / files.length * 100) + '%'; $('#pu-t', m.el).textContent = 'اترفع ' + ok + '/' + files.length + (bad ? ' · ' + bad + ' مش DICOM' : ''); } }));
+      toast('اترفع ' + ok + ' ملف', ok ? 'hivis' : 'err'); if (ok) R.pacs(true);
+    };
+    const pick = dir => { const i = document.createElement('input'); i.type = 'file'; i.multiple = true; if (dir) i.webkitdirectory = true; i.onchange = () => run([...i.files]); i.click(); };
+    $('#pu-f', m.el).onclick = () => pick(false); $('#pu-d', m.el).onclick = () => pick(true);
+    const dz = $('#pdrop', m.el);
+    dz.ondragover = e => { e.preventDefault(); dz.classList.add('over'); }; dz.ondragleave = () => dz.classList.remove('over');
+    dz.ondrop = e => { e.preventDefault(); dz.classList.remove('over'); const out = [], items = [...(e.dataTransfer.items || [])].map(x => x.webkitGetAsEntry && x.webkitGetAsEntry()).filter(Boolean);
+      if (!items.length) return run([...e.dataTransfer.files]);
+      let pend = 0; const fin = () => { if (!pend) run(out); };
+      const walk = en => { pend++; if (en.isFile) en.file(f => { out.push(f); pend--; fin(); }, () => { pend--; fin(); }); else if (en.isDirectory) { const rd = en.createReader(); const more = () => rd.readEntries(L => { if (L.length) { L.forEach(walk); more(); } else { pend--; fin(); } }, () => { pend--; fin(); }); more(); } else { pend--; fin(); } };
+      items.forEach(walk); };
+  };
 
   start();
 })();

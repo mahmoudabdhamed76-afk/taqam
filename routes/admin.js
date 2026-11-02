@@ -6,13 +6,14 @@ const { db, DATA_DIR } = require('../lib/db');
 const U = require('../lib/util');
 const C = require('../lib/core');
 const webpush = require('../lib/webpush');
+const PERMS = require('../lib/perms');
 
 module.exports = function (R) {
   const { str, num, fail, nowTs, today } = U;
   const who = c => c.user.name;
 
   /* ── الحساب ── */
-  R('GET', '/api/me', c => ({ user: { id: c.user.id, name: c.user.name, username: c.user.username, role: c.user.role } }));
+  R('GET', '/api/me', c => ({ user: { id: c.user.id, name: c.user.name, username: c.user.username, role: c.user.role, perms: PERMS.list(c.user) }, all_perms: PERMS.PERMS }));
   R('POST', '/api/me/password', c => {
     const u = db.prepare('SELECT * FROM users WHERE id = ?').get(c.user.id);
     if (!U.verify(c.body.old, u.pass)) fail('الباسورد الحالي غلط');
@@ -21,16 +22,36 @@ module.exports = function (R) {
     db.prepare("DELETE FROM sessions WHERE kind = 'user' AND ref_id = ? AND id <> ?").run(u.id, c.sid);
     return { ok: true };
   });
-  R('GET', '/api/users', c => ({ users: db.prepare('SELECT id, name, username, role, last_login_at FROM users ORDER BY created_at').all() }));
+  R('GET', '/api/users', c => ({ users: db.prepare('SELECT id, name, username, role, perms, last_login_at FROM users ORDER BY created_at').all().map(u => ({ ...u, perms: PERMS.list(u) })), all_perms: PERMS.PERMS }));
   R('POST', '/api/users', c => {
     if (c.user.role !== 'admin') fail('ده للمدير العام بس', 403);
     const name = str(c.body.name, 60), username = str(c.body.username, 40).toLowerCase();
     if (!name || !/^[a-z0-9._-]{3,40}$/.test(username)) fail('اكتب الاسم واسم دخول إنجليزي (3 حروف على الأقل)');
     if (db.prepare('SELECT 1 FROM users WHERE username = ?').get(username) || db.prepare('SELECT 1 FROM employees WHERE username = ?').get(username)) fail('اسم الدخول ده مستخدم');
     const pw = U.genPass() + U.genPass().slice(0, 2);
-    db.prepare('INSERT INTO users (id, name, username, pass, role, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(U.uid(), name, username, U.hash(pw), c.body.role === 'admin' ? 'admin' : 'manager', nowTs());
+    const role = c.body.role === 'admin' ? 'admin' : 'manager', perms = role === 'admin' ? null : PERMS.clean(c.body.perms);
+    if (role !== 'admin' && !perms) fail('اختار صلاحية واحدة على الأقل');
+    db.prepare('INSERT INTO users (id, name, username, pass, role, created_at, perms) VALUES (?, ?, ?, ?, ?, ?, ?)').run(U.uid(), name, username, U.hash(pw), role, nowTs(), perms);
     U.log(who(c), 'user.add', username);
     return { ok: true, username, password: pw };
+  });
+  R('POST', '/api/users/perms', c => {
+    if (c.user.role !== 'admin') fail('ده للمدير العام بس', 403);
+    const u = db.prepare('SELECT * FROM users WHERE id = ?').get(str(c.body.id)); if (!u) fail('المستخدم مش موجود');
+    if (u.id === c.user.id) fail('مينفعش تغيّر صلاحياتك انت');
+    const role = c.body.role === 'admin' ? 'admin' : 'manager', perms = role === 'admin' ? null : PERMS.clean(c.body.perms);
+    if (role !== 'admin' && !perms) fail('اختار صلاحية واحدة على الأقل');
+    db.prepare('UPDATE users SET role = ?, perms = ? WHERE id = ?').run(role, perms, u.id);
+    U.log(who(c), 'user.perms', u.username + ' ' + (perms || 'admin'));
+    return { ok: true };
+  });
+  R('POST', '/api/users/reset', c => {
+    if (c.user.role !== 'admin') fail('ده للمدير العام بس', 403);
+    const u = db.prepare('SELECT * FROM users WHERE id = ?').get(str(c.body.id)); if (!u) fail('المستخدم مش موجود');
+    const pw = U.genPass() + U.genPass().slice(0, 2);
+    db.prepare('UPDATE users SET pass = ? WHERE id = ?').run(U.hash(pw), u.id);
+    db.prepare("DELETE FROM sessions WHERE kind = 'user' AND ref_id = ?").run(u.id);
+    return { ok: true, username: u.username, password: pw };
   });
   R('POST', '/api/users/del', c => {
     if (c.user.role !== 'admin') fail('ده للمدير العام بس', 403);
@@ -52,7 +73,8 @@ module.exports = function (R) {
       requests: db.prepare("SELECT COUNT(*) n FROM requests WHERE status = 'new'").get().n,
       follow: db.prepare("SELECT COUNT(*) n FROM clients WHERE status = 'active' AND next_follow IS NOT NULL AND next_follow <> '' AND next_follow <= ?").get(today()).n,
       chat: db.prepare("SELECT COUNT(*) n FROM messages WHERE side = 'emp' AND read_at IS NULL").get().n,
-      tasks: db.prepare("SELECT COUNT(*) n FROM tasks WHERE status IN ('new','accepted','on_way','arrived')").get().n
+      tasks: db.prepare("SELECT COUNT(*) n FROM tasks WHERE status IN ('new','accepted','on_way','arrived')").get().n,
+      pacs: db.prepare('SELECT COUNT(*) n FROM pacs_studies WHERE seen = 0').get().n
     };
   }
   R('GET', '/api/counts', () => counts());

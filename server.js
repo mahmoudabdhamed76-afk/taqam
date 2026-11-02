@@ -30,6 +30,9 @@ function R(method, pattern, fn) {
 require('./routes/admin')(R);
 require('./routes/staff')(R);
 require('./routes/portal')(R);
+require('./routes/pacs')(R);
+const PERMS = require('./lib/perms');
+const pacs = require('./lib/pacs');   // استقبال حالات DICOM من الأجهزة (SCP) وإرسالها (SCU)
 
 /* ── sessions ── */
 const SESSION_DAYS = 60;
@@ -135,7 +138,14 @@ const server = http.createServer(async (req, res) => {
   try {
     if (p.startsWith('/tiles/') && tiles.handle(req, res, p)) return;
     if ((p.startsWith('/k/') || p.startsWith('/v/') || p.startsWith('/h/')) && await cases.handle(req, res, p) !== false) return;
-    if (p === '/api/portal/cases' || p.startsWith('/api/portal/cases/')) { const s = session(req, 'user'); if (!s) return U.send(res, 401, { message: 'سجّل دخول' }); return await cases.adminApi(req, res, p, s.who); }
+    if (p === '/api/portal/cases' || p.startsWith('/api/portal/cases/')) { const s = session(req, 'user'); if (!s) return U.send(res, 401, { message: 'سجّل دخول' }); if (!PERMS.has(s.who, 'cases')) return U.send(res, 403, { message: 'مش من صلاحياتك' }); return await cases.adminApi(req, res, p, s.who); }
+    if (p === '/api/pacs/upload' && req.method === 'POST') {   /* ملف DICOM خام من المتصفح */
+      const s = session(req, 'user'); if (!s) return U.send(res, 401, { message: 'سجّل دخول' }); if (!PERMS.has(s.who, 'pacs')) return U.send(res, 403, { message: 'مش من صلاحياتك' });
+      const chunks = []; let size = 0;
+      for await (const ch of req) { size += ch.length; if (size > 400 * 1048576) U.fail('الملف كبير قوي', 413); chunks.push(ch); }
+      const r = await pacs.importFile(Buffer.concat(chunks), s.who.name);
+      return U.send(res, 200, { ok: true, uid: r.studyUid });
+    }
     if (await authRoutes(req, res, url) !== false) return;
 
     /* photos */
@@ -164,7 +174,7 @@ const server = http.createServer(async (req, res) => {
       if (!r) return U.send(res, 404, { message: 'مش موجود' });
       const ctx = { req, res, query: Object.fromEntries(url.searchParams), params: {} };
       const mm = r.rx.exec(p); r.keys.forEach((k, i) => { ctx.params[k] = mm[i + 1]; });
-      if (p.startsWith('/api/')) { const s = session(req, 'user'); if (!s) return U.send(res, 401, { message: 'سجّل دخول' }); ctx.user = s.who; ctx.sid = s.sid; }
+      if (p.startsWith('/api/')) { const s = session(req, 'user'); if (!s) return U.send(res, 401, { message: 'سجّل دخول' }); const need = PERMS.need(p, req.method); if (need && !PERMS.has(s.who, need)) return U.send(res, 403, { message: 'القسم ده مش من صلاحياتك' }); ctx.user = s.who; ctx.sid = s.sid; }
       else if (p.startsWith('/s/api/')) { const s = session(req, 'emp'); if (!s) return U.send(res, 401, { message: 'سجّل دخول' }); ctx.emp = s.who; ctx.sid = s.sid; }
       if (req.method === 'POST') ctx.body = await U.readBody(req);
       const out = await r.fn(ctx);
@@ -196,6 +206,7 @@ setInterval(() => {
 }, 6 * 3600 * 1000).unref();
 
 server.listen(PORT, () => {
+  pacs.start();
   console.log('');
   console.log('  طاقم ' + VERSION + ' شغّال');
   console.log('  لوحة المدير:   http://localhost:' + PORT + '/');
