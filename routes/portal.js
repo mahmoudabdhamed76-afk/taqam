@@ -28,8 +28,8 @@ module.exports = function (R) {
       items: U.lines('order_items'), devices: U.lines('devices'),
       requests: reqs.map(r => {
         let items = []; try { items = JSON.parse(r.items || '[]'); } catch (_) {}
-        const onWay = r.t_status === 'on_way', arrived = r.t_status === 'arrived';
-        return { id: r.id, kind: r.kind, items, device: r.device, note: r.note, status: r.status, status_text: (STATUS[r.kind] || STATUS.order)[r.status] + (onWay ? ' — ' + (r.t_emp || 'الفني') + ' في الطريق' : arrived ? ' — ' + (r.t_emp || 'الفني') + ' وصل' : ''), created_at: r.created_at, done_at: r.done_at, reply: r.reply, rating: r.rating, emp: r.t_emp, progress: onWay && r.t_d0 ? Math.max(0, Math.min(1, 1 - (r.t_dist || 0) / r.t_d0)) : null };
+        const onWay = r.t_status === 'on_way', arrived = r.t_status === 'arrived', acc = r.t_status === 'accepted';
+        return { id: r.id, kind: r.kind, items, device: r.device, note: r.note, status: r.status, status_text: (STATUS[r.kind] || STATUS.order)[r.status] + (onWay ? ' — ' + (r.t_emp || 'الفني') + ' في الطريق' : arrived ? ' — ' + (r.t_emp || 'الفني') + ' وصل' : acc ? ' — ' + (r.t_emp || 'الفني') + ' قبل الطلب' : ''), created_at: r.created_at, done_at: r.done_at, reply: r.reply, rating: r.rating, emp: r.t_emp, progress: onWay && r.t_d0 ? Math.max(0, Math.min(1, 1 - (r.t_dist || 0) / r.t_d0)) : null };
       })
     };
   });

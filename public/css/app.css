@@ -114,3 +114,20 @@ body { min-height: 100dvh; padding-bottom: calc(104px + env(safe-area-inset-bott
 .banner > svg { color: var(--brand-2); }
 .search { position: relative; }
 .thumb { width: 64px; height: 64px; border-radius: 12px; object-fit: cover; border: 1px solid var(--line); }
+
+/* ── خطوات المهمة ── */
+.stp { position: relative; height: 50px; margin: 4px 16px 2px; }
+.stp-rail, .stp-fill { position: absolute; top: 11px; height: 4px; border-radius: 4px; inset-inline-start: 0; }
+.stp-rail { inset-inline-end: 0; background: repeating-linear-gradient(90deg, var(--line-2) 0 8px, transparent 8px 14px); }
+.stp-fill { width: var(--p); background: linear-gradient(270deg, #FF4651, #C8161F); box-shadow: 0 0 10px rgba(229, 35, 47, .6); transition: width 1s cubic-bezier(.2, .8, .2, 1); animation: stpIn 1s cubic-bezier(.2, .8, .2, 1); }
+@keyframes stpIn { from { width: 0; } }
+.stp-n { position: absolute; top: 0; transform: translateX(50%); display: grid; justify-items: center; gap: 3px; z-index: 1; }
+.stp-n span { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 11.5px; font-weight: 800; background: var(--card); border: 2px solid var(--line-2); color: var(--ink-3); }
+.stp-n.done span { background: var(--brand-grad); border-color: transparent; color: #fff; }
+.stp-n.cur span { border-color: var(--brand-2); color: var(--brand-2); box-shadow: 0 0 0 4px var(--brand-soft); animation: nodeP 1.8s infinite, burstPop .7s cubic-bezier(.3, 1.8, .5, 1); }
+@keyframes nodeP { 50% { box-shadow: 0 0 0 8px transparent; } }
+@keyframes burstPop { 0% { transform: scale(.4); } 60% { transform: scale(1.3); } 100% { transform: scale(1); } }
+.stp-n em { font-style: normal; font-size: 10.5px; color: var(--ink-3); white-space: nowrap; }
+.stp-n.done em, .stp-n.cur em { color: var(--ink); font-weight: 700; }
+.stp-car { position: absolute; top: -4px; inset-inline-start: var(--p); transform: translateX(50%); width: 32px; height: 32px; border-radius: 50%; background: var(--brand-grad); color: #fff; display: grid; place-items: center; z-index: 2; box-shadow: 0 0 16px rgba(229, 35, 47, .9); transition: inset-inline-start 1s; animation: carB .9s ease-in-out infinite; }
+@keyframes carB { 50% { margin-top: -3px; } }

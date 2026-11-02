@@ -52,7 +52,7 @@ module.exports = function (R) {
       requests: db.prepare("SELECT COUNT(*) n FROM requests WHERE status = 'new'").get().n,
       follow: db.prepare("SELECT COUNT(*) n FROM clients WHERE status = 'active' AND next_follow IS NOT NULL AND next_follow <> '' AND next_follow <= ?").get(today()).n,
       chat: db.prepare("SELECT COUNT(*) n FROM messages WHERE side = 'emp' AND read_at IS NULL").get().n,
-      tasks: db.prepare("SELECT COUNT(*) n FROM tasks WHERE status IN ('new','on_way','arrived')").get().n
+      tasks: db.prepare("SELECT COUNT(*) n FROM tasks WHERE status IN ('new','accepted','on_way','arrived')").get().n
     };
   }
   R('GET', '/api/counts', () => counts());
@@ -62,6 +62,7 @@ module.exports = function (R) {
     const ds = U.isDate(c.query.date) ? c.query.date : today();
     return {
       date: ds, now: nowTs(), board: C.dayBoard(ds), counts: counts(),
+      live_tasks: db.prepare("SELECT t.*, e.name emp_name, e.hue emp_hue, e.photo IS NOT NULL has_photo, length(e.photo) pv FROM tasks t LEFT JOIN employees e ON e.id = t.emp_id WHERE t.status IN ('new','accepted','on_way','arrived') OR (t.status = 'done' AND substr(t.done_at,1,10) = ?) ORDER BY CASE t.status WHEN 'on_way' THEN 0 WHEN 'arrived' THEN 1 WHEN 'accepted' THEN 2 WHEN 'new' THEN 3 ELSE 4 END, t.id DESC LIMIT 30").all(ds).map(t => Object.assign(t, { emp: { id: t.emp_id, name: t.emp_name || '؟', hue: t.emp_hue, photo: t.has_photo ? '/api/emp-photo/' + t.emp_id + '?v=' + t.pv : '' } })),
       requests: db.prepare("SELECT r.*, cl.name client_name FROM requests r LEFT JOIN clients cl ON cl.id = r.client_id WHERE r.status IN ('new','ok') ORDER BY r.id DESC LIMIT 8").all().map(reqOut),
       follow: db.prepare("SELECT id, name, grp, phone, next_follow FROM clients WHERE status = 'active' AND next_follow IS NOT NULL AND next_follow <> '' AND next_follow <= ? ORDER BY next_follow LIMIT 8").all(today())
     };
@@ -153,7 +154,7 @@ module.exports = function (R) {
   /* ── المهام ── */
   R('GET', '/api/tasks', c => {
     const st = str(c.query.status, 10);
-    const rows = st === 'open' ? db.prepare("SELECT * FROM tasks WHERE status IN ('new','on_way','arrived') ORDER BY id DESC").all()
+    const rows = st === 'open' ? db.prepare("SELECT * FROM tasks WHERE status IN ('new','accepted','on_way','arrived') ORDER BY id DESC").all()
       : db.prepare('SELECT * FROM tasks ORDER BY id DESC LIMIT 200').all();
     return { tasks: rows };
   });

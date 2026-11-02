@@ -13,7 +13,7 @@
   const titleOf = p => (ALLP.find(x => x[0] === p) || ['', 'طاقم'])[1];
   const BNAV = [['today', 'الرئيسية', 'home'], ['tasks', 'المهام', 'task'], ['team', 'الفريق', 'users'], ['clients', 'العملاء', 'store']];
   const STATE = { in: ['في الشغل', 'go'], on_way: ['في الطريق لمهمة', 'hivis'], visit: ['في زيارة', 'hivis'], out: ['انصرف', ''], absent: ['مجاش', 'stop'], rest: ['أجازة', ''], not_yet: ['لسه ميعاده مجاش', ''] };
-  const TASK = { new: ['جديدة', 'sky'], on_way: ['في الطريق', 'hivis'], arrived: ['وصل', 'go'], done: ['خلصت', ''], cancelled: ['اتلغت', 'stop'] };
+  const TASK = { new: ['جديدة', 'sky'], accepted: ['اتقبلت', 'brand'], on_way: ['في الطريق', 'hivis'], arrived: ['وصل', 'go'], done: ['خلصت', ''], cancelled: ['اتلغت', 'stop'] };
   const REQ = { new: ['جديد', 'hivis'], ok: ['اتأكد', 'sky'], sent: ['خلص', 'go'], no: ['اتلغى', 'stop'] };
   const FU = { call: ['مكالمة', 'phone'], whatsapp: ['واتساب', 'wa'], visit: ['زيارة', 'pin'], meeting: ['مقابلة', 'users'], note: ['ملحوظة', 'edit'] };
   const chip = (t, k) => '<span class="chip ' + (k || '') + '">' + esc(t) + '</span>';
@@ -72,7 +72,7 @@
   function shell() {
     const s = S.boot.settings;
     let rail = false; try { rail = localStorage.getItem('tq-rail') === '1'; } catch (_) {}
-    const liveBox = '<div class="live" id="live"><div class="live-tag"><span class="dot live"></span>مباشر</div><div class="live-win"><div class="live-track" id="live-track"><span>بيحمّل…</span></div></div></div>';
+    const liveBox = '<div class="livebox" id="live"><div class="live-tag"><span class="dot live"></span>مباشر</div><div class="live-win"><div class="live-track" id="live-track"><span>بيحمّل…</span></div></div></div>';
     $('#root').innerHTML = '<div class="app ' + (rail ? 'rail' : '') + '" id="app">' +
       '<aside class="side"><a class="brand" href="#/today"><span class="logo"><img src="' + logoSrc(s) + '" alt=""></span><span class="brand-t"><b>' + esc(s.company) + '</b><span>نظام الإدارة</span></span><button class="rail-btn" data-act="rail" title="تصغير القايمة" aria-label="تصغير القايمة">' + ic('panel', 16) + '</button></a>' +
       '<nav class="nav" id="nav"></nav><div class="side-foot"><button class="out-btn" data-act="logout">' + ic('out', 18) + '<span>تسجيل خروج</span></button></div></aside>' +
@@ -178,7 +178,8 @@
       es.addEventListener('request', () => { toast('طلب جديد من عميل', 'hivis'); soft(['today', 'requests', 'clients']); });
       es.addEventListener('chat', ev => { const d = JSON.parse(ev.data || '{}'); if (S.page === 'chat') R.chat(true, d.emp); else { const e = empById(d.emp); toast('رسالة من ' + (e ? e.name : 'موظف')); refreshCounts(); } });
       es.addEventListener('att', ev => { const d = JSON.parse(ev.data || '{}'), e = empById(d.emp); if (e) toast(e.name + (d.kind === 'out' ? ' سجّل انصراف' : ' سجّل حضور'), d.kind === 'out' ? '' : 'hivis'); soft(['today', 'att', 'map']); ticker(true); });
-      es.addEventListener('task', ev => { const d = JSON.parse(ev.data || '{}'); if (d.arrived) toast('موظف وصل للعميل ✓', 'hivis'); else if (d.done) toast('مهمة خلصت ✓'); soft(['today', 'tasks', 'map']); ticker(true); });
+      es.addEventListener('task', ev => { const d = JSON.parse(ev.data || '{}'); const e = empById(d.emp), nm = e ? e.name : 'الموظف'; if (d.step === 'accepted') toast(nm + ' قبل المهمة'); else if (d.step === 'on_way') toast(nm + ' في الطريق'); else if (d.arrived) toast(nm + ' وصل للعميل ✓', 'hivis'); else if (d.done) toast(nm + ' حلّ المشكلة ✓', 'hivis'); soft(['today', 'tasks', 'map']); ticker(true); });
+      es.addEventListener('taskmove', ev => { const d = JSON.parse(ev.data || '{}'); $$('[data-tk="' + d.id + '"]').forEach(el => { const p = d.d0 ? Math.max(0, Math.min(1, 1 - (d.dist || 0) / d.d0)) : 0, pc = 50 + 25 * p; el.style.setProperty('--p', pc + '%'); el.style.setProperty('--to', pc + '%'); if (S.tkPrev[d.id]) S.tkPrev[d.id].pct = pc; const dd = $('.tk-d', el); if (dd) dd.textContent = K.dist(d.dist); }); });
       es.addEventListener('visit', () => soft(['today', 'map']));
       es.addEventListener('client', () => soft(['clients', 'follow']));
       es.addEventListener('loc', ev => { const d = JSON.parse(ev.data || '{}'); moveEmp(d); });
@@ -214,6 +215,39 @@
   /* ════════ الصفحات ════════ */
   const R = {};
 
+
+  /* ════ متابعة المهمة لحظة بلحظة: اتبعتت ← قبلها ← في الطريق ← وصل ← اتحلّت ════ */
+  const STEPS = [['new', 'اتبعتت', 'send'], ['accepted', 'قبلها', 'check'], ['on_way', 'في الطريق', 'route'], ['arrived', 'وصل', 'pin'], ['done', 'اتحلّت', 'star']];
+  const stepIdx = st => Math.max(0, STEPS.findIndex(x => x[0] === st));
+  S.tkPrev = S.tkPrev || {};
+  function tkPct(t) {
+    const i = stepIdx(t.status);
+    if (t.status === 'on_way') { const p = t.d0 ? Math.max(0, Math.min(1, 1 - (t.dist || 0) / t.d0)) : 0; return 50 + 25 * p; }
+    return i * 25;
+  }
+  function tracker(t) {
+    const i = stepIdx(t.status), pct = tkPct(t), prev = S.tkPrev[t.id], burst = prev && prev.step !== t.status && ['arrived', 'done', 'accepted'].includes(t.status) ? ' burst' : '';
+    const times = { new: t.created_at, accepted: t.accepted_at, on_way: t.started_at, arrived: t.arrived_at, done: t.done_at };
+    const from = prev ? prev.pct : pct;
+    S.tkPrev[t.id] = { step: t.status, pct };
+    const e = t.emp || empById(t.emp_id) || { name: '؟' };
+    return '<div class="trk ' + t.status + burst + '" data-tk="' + t.id + '" style="--p:' + from + '%;--to:' + pct + '%">' +
+      '<div class="trk-hd">' + av(e, 'sm') + '<div class="grow" style="min-width:0"><b>' + esc(e.name) + '</b> <span class="muted small">' + esc(t.title) + '</span><div class="xs muted">' + (t.client_name ? ic('pin', 12) + ' ' + esc(t.client_name) : '') + (t.self ? ' · <span style="color:var(--hivis)">سجّلها بنفسه</span>' : '') + '</div></div>' +
+      '<span class="trk-st">' + (t.status === 'on_way' ? '<span class="dot live"></span>فاضل <b class="tk-d">' + K.dist(t.dist) + '</b>' : t.status === 'done' ? ic('check', 14) + 'اتحلّت المشكلة' : STEPS[i][1]) + '</span></div>' +
+      '<div class="trk-line"><div class="trk-rail"></div><div class="trk-fill"></div>' +
+      STEPS.map(([k, lbl, icn], j) => '<div class="trk-node ' + (j < i ? 'done' : j === i ? 'cur' : '') + '" style="inset-inline-start:' + (j * 25) + '%"><span class="trk-dot">' + ic(j < i || (j === i && k === 'done') ? 'check' : icn, 13) + '</span><span class="trk-lbl">' + lbl + (times[k] && j <= i ? '<i>' + hm(times[k]) + '</i>' : '') + '</span></div>').join('') +
+      (t.status === 'on_way' ? '<div class="trk-car">' + ic('route', 15) + '</div>' : '') +
+      '</div></div>';
+  }
+  function animTrackers(root) {
+    requestAnimationFrame(() => requestAnimationFrame(() => $$('.trk', root).forEach(el => el.style.setProperty('--p', el.style.getPropertyValue('--to')))));
+  }
+  function liveTasksCard(list) {
+    const act = list.filter(t => t.status !== 'done'), done = list.filter(t => t.status === 'done');
+    return '<div class="card pad tk-live" id="tk-live"><div class="row" style="margin-bottom:6px"><h3 class="grow">المهام دلوقتي</h3>' + (act.length ? '<span class="chip brand"><span class="dot live"></span>' + act.length + ' شغالة</span>' : '') + '<button class="btn sm primary" data-act="newTask">' + ic('plus', 15) + 'مهمة</button></div>' +
+      (list.length ? '<div class="trk-list">' + act.concat(done.slice(0, 4)).map(tracker).join('') + '</div>' : '<div class="empty small" style="padding:18px">مفيش مهام النهارده — ابعت موظف لعميل وتابعه هنا خطوة بخطوة.</div>') + '</div>';
+  }
+
   /* ── اليوم ── */
   R.today = async function () {
     const d = await get('/api/today'); S.counts = d.counts; tabs();
@@ -224,8 +258,10 @@
       '<div class="ph"><div><h1>' + K.dayName(d.date) + '، ' + dm(d.date) + '</h1><div class="sub">' + B.length + ' موظف في الخدمة — آخر تحديث ' + hm(d.now) + '</div></div>' +
       '<div class="acts"><button class="btn" data-act="refresh">' + ic('refresh', 16) + 'تحديث</button><button class="btn primary" data-act="newTask">' + ic('plus', 16) + 'مهمة جديدة</button></div></div>' +
       '<div class="tally draw"><div class="go"><span class="ic">' + ic('users', 18) + '</span><b data-count="' + cnt(['in', 'on_way', 'visit']) + '">' + cnt(['in', 'on_way', 'visit']) + '</b><span>في الشغل دلوقتي</span></div><div><span class="ic">' + ic('route', 18) + '</span><b data-count="' + cnt(['on_way', 'visit']) + '">' + cnt(['on_way', 'visit']) + '</b><span>في الطريق أو عند عميل</span></div><div class="late"><span class="ic">' + ic('clock', 18) + '</span><b data-count="' + late + '">' + late + '</b><span>اتأخروا النهارده</span></div><div class="stop"><span class="ic">' + ic('x', 18) + '</span><b data-count="' + cnt(['absent']) + '">' + cnt(['absent']) + '</b><span>مجوش</span></div><div class="hv rp" data-act="go" data-p="requests"><span class="ic">' + ic('inbox', 18) + '</span><b data-count="' + (d.counts.requests || 0) + '">' + (d.counts.requests || 0) + '</b><span>طلبات عملاء جديدة</span></div></div>' +
+      liveTasksCard(d.live_tasks || []) +
       '<div class="cols"><div class="stack">' + timeline(B, d) + '<div class="card" style="padding:0;overflow:hidden"><div class="blk-hd"><h3>فين الفريق دلوقتي</h3><button class="btn sm ghost" data-act="go" data-p="map">' + ic('map', 15) + 'الخريطة كاملة</button></div><div class="map" id="m-today" style="border:0;border-radius:0;height:340px"></div></div></div>' +
       '<div class="stack">' + reqList(d.requests) + followList(d.follow) + '</div></div>';
+    animTrackers(view());
     liveMap('m-today', await get('/api/live'));
   };
   function timeline(B, d) {
@@ -451,7 +487,7 @@
   R.tasks = async function () {
     const d = await get('/api/tasks'); const T = d.tasks;
     const recent = ds => ds && ds.slice(0, 10) >= addDays(today(), -2);
-    const lanes = [['new', 'جديدة', T.filter(t => t.status === 'new')], ['on_way', 'في الطريق', T.filter(t => t.status === 'on_way')], ['arrived', 'وصل', T.filter(t => t.status === 'arrived')], ['done', 'خلصت (آخر 3 أيام)', T.filter(t => t.status === 'done' && recent(t.done_at))]];
+    const lanes = [['new', 'جديدة واتقبلت', T.filter(t => t.status === 'new' || t.status === 'accepted')], ['on_way', 'في الطريق', T.filter(t => t.status === 'on_way')], ['arrived', 'وصل', T.filter(t => t.status === 'arrived')], ['done', 'خلصت (آخر 3 أيام)', T.filter(t => t.status === 'done' && recent(t.done_at))]];
     view().innerHTML = '<div class="ph"><div><h1>المهام</h1><div class="sub">ابعت موظف لعميل — يشوفها على موبايله، ولما يبدأ تتابع المسافة لحد ما يوصل.</div></div><div class="acts"><button class="btn primary" data-act="newTask">' + ic('plus', 16) + 'مهمة جديدة</button></div></div>' +
       '<div class="lanes">' + lanes.map(([k, t, list]) => '<div class="lane"><div class="lane-hd"><span class="dot ' + (k === 'on_way' ? 'live' : '') + '" style="color:' + ({ new: 'var(--sky)', on_way: '#B88700', arrived: 'var(--go)', done: 'var(--ink-3)' }[k]) + '"></span>' + t + '<span class="n">' + list.length + '</span></div>' +
         (list.map(t => { const e = empById(t.emp_id) || { name: '؟' }; const p = t.status === 'on_way' && t.d0 ? Math.max(0, Math.min(100, (1 - (t.dist || 0) / t.d0) * 100)) : null;

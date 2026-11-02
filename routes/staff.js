@@ -29,7 +29,7 @@ module.exports = function (R) {
       settings: { company: s.company, logo: s.logo, currency: s.currency, ping_min: +s.ping_min || 15, require_location: s.require_location === '1', geofence: s.geofence, chat_on: s.chat_on === '1', purposes: U.lines('purposes'), arrive_radius: +s.arrive_radius || 200 },
       open: att || null, today_att: todayAtt,
       visit: db.prepare('SELECT * FROM visits WHERE emp_id = ? AND end_at IS NULL ORDER BY id DESC LIMIT 1').get(e.id) || null,
-      tasks: db.prepare("SELECT t.*, c.lat c_lat, c.lng c_lng, c.address c_address, c.phone c_phone FROM tasks t LEFT JOIN clients c ON c.id = t.client_id WHERE t.emp_id = ? AND t.status IN ('new','on_way','arrived') ORDER BY CASE t.status WHEN 'on_way' THEN 0 WHEN 'arrived' THEN 1 ELSE 2 END, t.id").all(e.id),
+      tasks: db.prepare("SELECT t.*, c.lat c_lat, c.lng c_lng, c.address c_address, c.phone c_phone FROM tasks t LEFT JOIN clients c ON c.id = t.client_id WHERE t.emp_id = ? AND t.status IN ('new','accepted','on_way','arrived') ORDER BY CASE t.status WHEN 'on_way' THEN 0 WHEN 'arrived' THEN 1 WHEN 'accepted' THEN 2 ELSE 3 END, t.id").all(e.id),
       unread: db.prepare("SELECT COUNT(*) n FROM messages WHERE emp_id = ? AND side = 'mgr' AND read_at IS NULL").get(e.id).n,
       rewards: db.prepare('SELECT * FROM rewards WHERE emp_id = ? AND seen = 0 ORDER BY id').all(e.id),
       push: webpush.countFor('e:' + e.id) > 0
@@ -102,18 +102,37 @@ module.exports = function (R) {
   R('POST', '/s/api/task/start', c => {
     const e = c.emp, t = myTask(c), p = loc(c.body);
     if (!C.openAtt(e.id)) fail('سجّل حضور الأول');
-    if (t.status !== 'new') return { ok: true, home: home(e) };
+    if (t.status !== 'new' && t.status !== 'accepted') return { ok: true, home: home(e) };
     const d0 = p ? U.haversine(p.lat, p.lng, t.c_lat, t.c_lng) : null;
-    db.prepare("UPDATE tasks SET status = 'on_way', started_at = ?, d0 = ?, dist = ?, last_lat = ?, last_lng = ?, last_at = ? WHERE id = ?").run(nowTs(), d0, d0, p && p.lat, p && p.lng, nowTs(), t.id);
+    db.prepare("UPDATE tasks SET status = 'on_way', accepted_at = COALESCE(accepted_at, started_at, ?), started_at = ?, d0 = ?, dist = ?, last_lat = ?, last_lng = ?, last_at = ? WHERE id = ?").run(nowTs(), nowTs(), d0, d0, p && p.lat, p && p.lng, nowTs(), t.id);
     track(e, p, 'task');
-    C.notifyManagers({ title: e.name + ' في الطريق', body: t.title + (t.client_name ? ' — ' + t.client_name : '') + (d0 != null ? ' (' + fmtDist(d0) + ')' : ''), tag: 'task-' + t.id }, { type: 'task', data: { id: t.id } });
+    C.notifyManagers({ title: e.name + ' في الطريق', body: t.title + (t.client_name ? ' — ' + t.client_name : '') + (d0 != null ? ' (' + fmtDist(d0) + ')' : ''), tag: 'task-' + t.id }, { type: 'task', data: { id: t.id, step: 'on_way', emp: e.id } });
     return { ok: true, home: home(e) };
+  });
+  R('POST', '/s/api/task/accept', c => {
+    const e = c.emp, t = myTask(c);
+    if (t.status === 'new') {
+      db.prepare("UPDATE tasks SET status = 'accepted', accepted_at = ?, seen_at = COALESCE(seen_at, ?) WHERE id = ?").run(nowTs(), nowTs(), t.id);
+      C.notifyManagers({ title: e.name + ' قبل المهمة', body: t.title + (t.client_name ? ' — ' + t.client_name : ''), tag: 'task-' + t.id }, { type: 'task', data: { id: t.id, step: 'accepted', emp: e.id } });
+    }
+    return { ok: true, home: home(e) };
+  });
+  /* الموظف يسجّل مهمة لنفسه (مثلاً عميل كلّمه على طول) */
+  R('POST', '/s/api/task/self', c => {
+    const e = c.emp, b = c.body;
+    const cl = b.client_id ? db.prepare('SELECT * FROM clients WHERE id = ?').get(str(b.client_id)) : null;
+    const title = str(b.title, 120) || (cl ? 'زيارة ' + cl.name : ''); if (!title) fail('اكتب المهمة');
+    const id = Number(db.prepare("INSERT INTO tasks (emp_id, client_id, client_name, title, note, status, created_at, created_by, accepted_at, self) VALUES (?,?,?,?,?,'accepted',?,?,?,1)")
+      .run(e.id, cl ? cl.id : null, cl ? cl.name : str(b.place, 100), title, str(b.note, 500), nowTs(), e.name, nowTs()).lastInsertRowid);
+    C.notifyManagers({ title: e.name + ' سجّل مهمة', body: title + (cl ? ' — ' + cl.name : ''), tag: 'task-' + id }, { type: 'task', data: { id, step: 'accepted', emp: e.id } });
+    return { ok: true, id, home: home(e) };
   });
   R('POST', '/s/api/task/ping', c => {
     const e = c.emp, t = myTask(c), p = loc(c.body); if (!p || t.status !== 'on_way') return { ok: true };
     const d = U.haversine(p.lat, p.lng, t.c_lat, t.c_lng);
     db.prepare('UPDATE tasks SET dist = ?, last_lat = ?, last_lng = ?, last_at = ? WHERE id = ?').run(d, p.lat, p.lng, nowTs(), t.id);
     track(e, p, 'task');
+    U.emit('taskmove', { id: t.id, dist: d, d0: t.d0 });
     if (d != null && d <= U.cfgNum('arrive_radius')) return arrive(e, t, p);
     return { ok: true, dist: d };
   });
@@ -123,7 +142,7 @@ module.exports = function (R) {
     db.prepare("UPDATE tasks SET status = 'arrived', arrived_at = ?, dist = ? WHERE id = ?").run(nowTs(), p ? U.haversine(p.lat, p.lng, t.c_lat, t.c_lng) : t.dist, t.id);
     if (p && t.client_id && t.c_lat == null) db.prepare('UPDATE clients SET lat = ?, lng = ? WHERE id = ?').run(p.lat, p.lng, t.client_id);
     track(e, p, 'arrive');
-    C.notifyManagers({ title: e.name + ' وصل', body: t.title + (t.client_name ? ' — ' + t.client_name : ''), tag: 'task-' + t.id }, { type: 'task', data: { id: t.id, arrived: true } });
+    C.notifyManagers({ title: e.name + ' وصل', body: t.title + (t.client_name ? ' — ' + t.client_name : ''), tag: 'task-' + t.id }, { type: 'task', data: { id: t.id, arrived: true, step: 'arrived', emp: e.id } });
     return { ok: true, arrived: true, home: home(e) };
   }
   R('POST', '/s/api/task/done', c => {
@@ -135,7 +154,7 @@ module.exports = function (R) {
     if (t.client_id) db.prepare('INSERT INTO followups (client_id, at, kind, note, by_name) VALUES (?,?,?,?,?)').run(t.client_id, nowTs(), 'visit', 'تمت المهمة: ' + t.title + (str(c.body.note) ? ' — ' + str(c.body.note, 800) : '') + (str(c.body.handed_to) ? ' — استلم: ' + str(c.body.handed_to, 80) : ''), e.name);
     if (str(c.body.fault_title) && str(c.body.fault_solution)) addFault(e, { title: c.body.fault_title, solution: c.body.fault_solution, code: c.body.fault_code, client_id: t.client_id, client_name: t.client_name });
     track(e, loc(c.body), 'task_done');
-    C.notifyManagers({ title: e.name + ' خلّص مهمة', body: t.title + (t.client_name ? ' — ' + t.client_name : ''), tag: 'task-' + t.id }, { type: 'task', data: { id: t.id, done: true } });
+    C.notifyManagers({ title: e.name + ' خلّص مهمة', body: t.title + (t.client_name ? ' — ' + t.client_name : ''), tag: 'task-' + t.id }, { type: 'task', data: { id: t.id, done: true, step: 'done', emp: e.id } });
     return { ok: true, home: home(e) };
   });
 

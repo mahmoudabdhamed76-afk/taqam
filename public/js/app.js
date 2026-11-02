@@ -81,6 +81,7 @@
     const vb = $('#v-start'); if (vb) vb.onclick = visitStart;
     const ve = $('#v-end'); if (ve) ve.onclick = visitEnd;
     $$('[data-task]').forEach(b => b.onclick = () => taskAct(b.dataset.task, +b.dataset.id, b));
+    const ts = $('#t-self'); if (ts) ts.onclick = selfTask;
   }
   function clock() {
     const open = H.open, sh = H.shift;
@@ -164,29 +165,41 @@
   function visitEnd() { doneForm('خلّصت عند ' + H.visit.client_name, true, async f => { const r = await post('/s/api/visit/end', f); H = Object.assign(H, r.home); toast('الزيارة اتقفلت ✓'); render(); }); }
 
   /* ── المهام ── */
+  const STEPS = [['new', 'اتبعتت'], ['accepted', 'قبلتها'], ['on_way', 'في الطريق'], ['arrived', 'وصلت'], ['done', 'اتحلّت']];
+  function steps(t) {
+    const i = Math.max(0, STEPS.findIndex(x => x[0] === t.status));
+    const pct = t.status === 'on_way' && t.d0 ? 50 + 25 * Math.max(0, Math.min(1, 1 - (t.dist || 0) / t.d0)) : i * 25;
+    return '<div class="stp" style="--p:' + pct + '%"><div class="stp-rail"></div><div class="stp-fill"></div>' + STEPS.map(([k, l], j) => '<div class="stp-n ' + (j < i ? 'done' : j === i ? 'cur' : '') + '" style="inset-inline-start:' + (j * 25) + '%"><span>' + (j < i ? ic('check', 12) : j + 1) + '</span><em>' + l + '</em></div>').join('') + (t.status === 'on_way' ? '<div class="stp-car">' + ic('route', 14) + '</div>' : '') + '</div>';
+  }
   function tasksBlock() {
-    if (!H.tasks.length) return '';
-    return '<section class="sect"><div class="sect-hd"><h3>مهامك</h3><span class="chip">' + H.tasks.length + '</span></div>' + H.tasks.map(t => {
+    const head = '<div class="sect-hd"><h3>مهامك</h3>' + (H.tasks.length ? '<span class="chip">' + H.tasks.length + '</span>' : '') + (H.open ? '<button class="btn sm" id="t-self">' + ic('plus', 15) + 'سجّل مهمة</button>' : '') + '</div>';
+    if (!H.tasks.length) return H.open ? '<section class="sect">' + head + '<div class="empty small" style="padding:14px">مفيش مهام دلوقتي. لو عميل كلّمك سجّلها بنفسك والإدارة هتتابعك.</div></section>' : '';
+    return '<section class="sect">' + head + H.tasks.map(t => {
       const maps = t.c_lat != null ? 'https://www.google.com/maps/dir/?api=1&destination=' + t.c_lat + ',' + t.c_lng : t.c_address ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(t.c_address) : '';
-      const pct = t.status === 'on_way' && t.d0 ? Math.max(0, Math.min(1, 1 - (t.dist || 0) / t.d0)) : 0;
-      return '<div class="tcard ' + (t.status === 'on_way' ? 'live' : '') + '"><div class="row"><div class="grow"><h4>' + esc(t.title) + '</h4>' + (t.client_name ? '<div class="small muted">' + ic('pin', 13) + ' ' + esc(t.client_name) + (t.c_address ? ' — ' + esc(t.c_address) : '') + '</div>' : '') + '</div>' + (t.status === 'arrived' ? '<span class="chip go">وصلت</span>' : t.status === 'on_way' ? '<span class="chip hivis"><span class="dot live"></span>في الطريق</span>' : '<span class="chip sky">جديدة</span>') + '</div>' +
-        (t.note ? '<div style="white-space:pre-wrap;font-size:14.5px">' + esc(t.note) + '</div>' : '') +
-        (t.status === 'on_way' ? '<div class="road" style="--p:' + pct.toFixed(3) + '"><div class="ln"></div><div class="fill"></div><div class="car">' + ic('route', 16) + '</div><div class="end">' + ic('pin', 15) + '</div></div><div class="small muted" style="text-align:center">فاضل ' + K.dist(t.dist) + ' — الإدارة شايفة إنك في الطريق</div>' : '') +
-        '<div class="row wrap" style="gap:6px">' + (maps ? '<a class="btn sm" target="_blank" rel="noopener" href="' + maps + '">' + ic('map', 15) + 'الطريق</a>' : '') + (t.c_phone ? '<a class="btn sm" href="tel:' + esc(t.c_phone) + '">' + ic('phone', 15) + 'اتصل</a>' : '') + '</div>' +
-        (t.status === 'new' ? '<button class="btn primary bigbtn" data-task="start" data-id="' + t.id + '">' + ic('route', 18) + 'أنا في الطريق</button>'
+      const btn = t.status === 'new' ? '<button class="btn primary bigbtn" data-task="accept" data-id="' + t.id + '">' + ic('check', 18) + 'قبلت المهمة</button>'
+        : t.status === 'accepted' ? '<button class="btn primary bigbtn" data-task="start" data-id="' + t.id + '">' + ic('route', 18) + 'أنا في الطريق</button>'
           : t.status === 'on_way' ? '<button class="btn go bigbtn" data-task="arrive" data-id="' + t.id + '">' + ic('pin', 18) + 'وصلت</button>'
-            : '<button class="btn primary bigbtn" data-task="done" data-id="' + t.id + '">' + ic('check', 18) + 'خلّصت المهمة</button>') + '</div>';
+            : '<button class="btn primary bigbtn" data-task="done" data-id="' + t.id + '">' + ic('star', 18) + 'حلّيت المشكلة</button>';
+      return '<div class="tcard ' + (t.status === 'on_way' ? 'live' : '') + '"><div class="row"><div class="grow"><h4>' + esc(t.title) + '</h4>' + (t.client_name ? '<div class="small muted">' + ic('pin', 13) + ' ' + esc(t.client_name) + (t.c_address ? ' — ' + esc(t.c_address) : '') + '</div>' : '') + '</div></div>' +
+        (t.note ? '<div style="white-space:pre-wrap;font-size:14.5px">' + esc(t.note) + '</div>' : '') + steps(t) +
+        (t.status === 'on_way' ? '<div class="small muted" style="text-align:center">فاضل ' + K.dist(t.dist) + ' — الإدارة شايفة إنك في الطريق</div>' : '') +
+        '<div class="row wrap" style="gap:6px">' + (maps ? '<a class="btn sm" target="_blank" rel="noopener" href="' + maps + '">' + ic('map', 15) + 'الطريق</a>' : '') + (t.c_phone ? '<a class="btn sm" href="tel:' + esc(t.c_phone) + '">' + ic('phone', 15) + 'اتصل</a>' : '') + '</div>' + btn + '</div>';
     }).join('') + '</section>';
+  }
+  async function selfTask() {
+    const d = await get('/s/api/clients').catch(err); if (!d) return;
+    const m = modal('<div class="modal-hd"><h3>سجّل مهمة</h3><button class="btn ghost icon" data-close aria-label="قفل">' + ic('x') + '</button></div><form id="sf" style="display:grid;gap:12px"><label class="field"><span>العميل</span><input class="input" list="scl" id="sc" placeholder="اكتب اسم العميل"><datalist id="scl">' + d.clients.map(c => '<option value="' + esc(c.name) + '">').join('') + '</datalist></label><label class="field"><span>المطلوب</span><input class="input" name="title" placeholder="مثلاً: صيانة طابعة الأفلام"></label><label class="field"><span>تفاصيل</span><textarea class="input" name="note"></textarea></label><div class="modal-ft"><button class="btn primary bigbtn">' + ic('check', 18) + 'سجّلها — الإدارة هتتابعك</button></div></form>');
+    $('#sf', m.el).onsubmit = ev => { ev.preventDefault(); busy(ev.submitter, async () => { const f = form($('#sf', m.el)), nm = $('#sc', m.el).value.trim(), c = d.clients.find(x => x.name === nm); if (c) f.client_id = c.id; else if (nm) f.place = nm; const r = await post('/s/api/task/self', f); H = Object.assign(H, r.home); m.close(); toast('اتسجلت ✓ دوس «أنا في الطريق» لما تتحرك'); render(); }); };
   }
   async function taskAct(kind, id, b) {
     const t = H.tasks.find(x => x.id === id);
-    if (kind === 'done') return doneForm('خلّصت: ' + t.title, true, async f => { const r = await post('/s/api/task/done', Object.assign(f, { id })); H = Object.assign(H, r.home); toast('عاش! المهمة خلصت ✓', 'hivis'); syncTaskWatch(); render(); });
+    if (kind === 'done') return doneForm('حلّيت: ' + t.title, true, async f => { const r = await post('/s/api/task/done', Object.assign(f, { id })); H = Object.assign(H, r.home); toast('عاش! المشكلة اتحلّت ✓', 'hivis'); syncTaskWatch(); render(); });
     busy(b, async () => {
       if (kind === 'start' && !H.open) throw new Error('سجّل حضور الأول');
-      const p = await K.locate(15000);
+      const p = kind === 'accept' ? null : await K.locate(15000);
       const r = await post('/s/api/task/' + kind, Object.assign({ id }, p || {}));
       if (r.home) H = Object.assign(H, r.home);
-      toast(kind === 'start' ? 'ربنا معاك — هنبعت مكانك كل 30 ثانية لحد ما توصل' : 'وصلت ✓');
+      toast(kind === 'accept' ? 'قبلت المهمة ✓ الإدارة اتبلّغت' : kind === 'start' ? 'ربنا معاك — هنبعت مكانك كل 30 ثانية لحد ما توصل' : 'وصلت ✓');
       syncTaskWatch(); render();
     });
   }
